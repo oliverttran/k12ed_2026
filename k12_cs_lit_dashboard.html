@@ -23,9 +23,8 @@
   
     fetch("https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json")
       .then(r => r.json())
-      .then(j => { US_TOPO = j; render(); });   // <-- force a re-render when ready
-  </script>
-  
+      .then(j => { US_TOPO = j; render(); });
+</script>
 
 <style>
   :root { --bg:#0b0c10; --panel:#12141a; --ink:#e6e6e6; --muted:#a8b0c0; --accent:#6ea8fe; }
@@ -54,12 +53,20 @@
   .note{color:#9aa4b2;font-size:12px;margin-top:6px}
   footer{padding:12px 20px;color:#8892a6}
   .btn{display:inline-block;padding:8px 10px;background:#1b2537;border:1px solid #2a3650;border-radius:8px;color:#dce3ee;cursor:pointer}
+  .plot svg [aria-label="tip"] text {
+    fill: #d6d6d6 !important;
+  }
+
+  .plot svg [aria-label="tip"] path {
+    fill: #393d47 !important;
+    stroke: rgb(58, 64, 77) !important;
+  }
 </style>
 </head>
 <body>
 <header>
   <h1>K-12 CS Literature Dashboard</h1>
-  <span class="note">Filter by year, grade band, population focus, state, tool/language, and study type.</span>
+  <span class="note">Filter by year, grade, population focus, state, tool/language, and study type.</span>
 </header>
 
 <div class="wrap">
@@ -70,15 +77,14 @@
       <input id="yearMax" type="number" value="2025" min="1990" max="2030" />
     </div>
 
-    <label>Grade band (multi-select)</label>
-    <select id="gradeSel" multiple size="6"></select>
+    <label>Grade (multi-select)</label>
+    <select id="gradeSel" multiple size="13"></select>
 
     <label>Population focus (multi-select)</label>
     <select id="popSel" multiple size="8"></select>
 
     <label>State (multi-select)</label>
     <select id="stateSel" multiple size="10"></select>
-
 
     <label>Tool / Language (multi-select)</label>
     <select id="toolSel" multiple size="8"></select>
@@ -106,7 +112,6 @@
       <div class="plot" id="timelinePlot"></div>
       <div class="plot" id="placePlot"></div>
       <div class="plot" id="heatPlot"></div>
-
     </section>
 
     <section class="card" style="margin-top:12px">
@@ -132,497 +137,64 @@
   </main>
 </div>
 
-<footer>Built with D3 + Observable Plot. Add rows to <code>DATA</code> below; the dashboard updates automatically.</footer>
+<footer>Built with D3 + Observable Plot. Add rows to <code>DATA</code>; the dashboard updates automatically.</footer>
+
+<script src="data.js"></script>
 
 <script>
-// --------- DATA (add your rows here; explode multi-valued cells with semicolons) ----------
-const DATA = [
-  // paper_id, year, title, authors, country, state, grade_band, population_focus, course_or_context,
-  // tool_language, study_type, n_students, n_teachers, n_sites, outcome_type, result_direction,
-  // key_findings, limitations_short, url_or_doi
-  {
-    paper_id:"ParkerDeLyser_2017", year:2017, title:"Concepts and Practices: Designing and Developing a Modern K–12 CS Framework",
-    authors:"Parker; DeLyser", country:"USA", state:"", grade_band:"multi", population_focus:"mixed",
-    course_or_context:"policy/framework", tool_language:"", study_type:"framework/design",
-    n_students:null, n_teachers:null, n_sites:null, outcome_type:"access/participation",
-    result_direction:"descriptive/no outcomes",
-    key_findings:"US K–12 CS Framework outlining core concepts and practices with grade-band progressions; basis for standards/curricula.",
-    limitations_short:"Framework report; no classroom outcomes; time-bound—needs refresh.", url_or_doi:""
-  },
-  {
-    paper_id:"MargolisEtAl_2012", year:2012, title:"Beyond Access: Broadening Participation in High School Computer Science",
-    authors:"Margolis et al.", country:"USA", state:"CA", grade_band:"9-12",
-    population_focus:"Latinx; Black; low-income", course_or_context:"ECS (district reform)",
-    tool_language:"Scratch; varied", study_type:"qualitative/practice-based", n_students:2000, n_teachers:null, n_sites:27,
-    outcome_type:"access/participation", result_direction:"positive",
-    key_findings:"District reform (ECS) expanded from pilot to 27 HS with meaningful uptake among Latino/a and Black students.",
-    limitations_short:"Qual evidence from selected sites; limited validated CS assessments; context-specific to large urban district.", url_or_doi:""
-  },
-  {
-    paper_id:"FreemanEtAl_2015", year:2015, title:"EarSketch: a STEAM approach to broadening participation in AP CSP",
-    authors:"Freeman et al.", country:"USA", state:"GA", grade_band:"9-12",
-    population_focus:"mixed", course_or_context:"AP CSP", tool_language:"EarSketch; Python; JavaScript",
-    study_type:"mixed/field implementation", n_students:null, n_teachers:null, n_sites:4,
-    outcome_type:"learning; engagement", result_direction:"mixed/nuanced",
-    key_findings:"Feasibility across typical HS; teachers can run EarSketch; equity rationale via music-making.",
-    limitations_short:"Small N of teachers/classes; short duration; no randomized comparison.", url_or_doi:""
-  },
-  {
-    paper_id:"FreemanEtAl_2015_girls", year:2015, title:"EarSketch: a STEAM approach to broadening participation in AP CSP",
-    authors:"Freeman et al.", country:"USA", state:"GA", grade_band:"9-12",
-    population_focus:"girls", course_or_context:"AP CSP", tool_language:"EarSketch; Python; JavaScript",
-    study_type:"mixed/field implementation", n_students:null, n_teachers:null, n_sites:4,
-    outcome_type:"engagement", result_direction:"descriptive/mixed",
-    key_findings:"Music-making context designed to attract girls and underrepresented groups; feasible in AP CSP.",
-    limitations_short:"Small early studies; limited statistical power.", url_or_doi:""
-  },
-  /*{
-    paper_id:"", year: 2017, title:"",
-    authors:"", country:"USA", state:"", grade_band:"",
-    population_focus:"",
-    course_or_context:"",
-    tool_language:"", study_type:"", n_students:null, n_teachers:null, n_sites:null,
-    outcome_type:"", result_direction:"",
-    key_findings:"", limitations_short:"", url_or_doi:""
-  },*/
-  {
-    paper_id:"GroverEtAl_2019", year:2019, title:"Non-Programming Activities for Engagement with Foundational Concepts in Introductory Programming",
-    authors:"Grover et al.", country:"USA", state:"", grade_band:"6-8", population_focus:"mixed",
-    course_or_context:"intro CS class", tool_language:"Scratch + pre-programming VELA",
-    study_type:"quasi/experience report with pre–post", n_students:72, n_teachers:null, n_sites:3,
-    outcome_type:"learning", result_direction:"positive",
-    key_findings:"Significant pre→post gains; VELA group Scratch projects stronger (esp. Boolean logic).",
-    limitations_short:"Single district; 4-week exposure; some UI/bridging issues.", url_or_doi:""
-  },
-  {
-    paper_id:"BanilowerCraven_2020", year:2020, title:"Factors Associated With High-Quality CS Instruction",
-    authors:"Banilower; Craven", country:"USA", state:"", grade_band:"9-12", population_focus:"mixed; rural",
-    course_or_context:"varied (AP CSP/CSA, intro)", tool_language:"",
-    study_type:"survey (national)", n_students:null, n_teachers:300, n_sites:1273,
-    outcome_type:"teacher practice", result_direction:"descriptive/associational",
-    key_findings:"More PD (≥35 hrs), preparedness, and coherent materials predict more frequent CS practices.",
-    limitations_short:"Self-report survey; correlational—not causal; no classroom observation.", url_or_doi:""
-  },
-  {
-    paper_id:"Judd_2020", year:2020, title:"Activities for Building Understanding: How AI4ALL Teaches AI",
-    authors:"Judd", country:"USA", state:"", grade_band:"9-12", population_focus:"mixed",
-    course_or_context:"AI outreach/curriculum", tool_language:"AI4ALL",
-    study_type:"curriculum/session description", n_students:null, n_teachers:null, n_sites:null,
-    outcome_type:"learning", result_direction:"descriptive/no outcomes",
-    key_findings:"Hands-on activities to define AI and compare human vs machine learning.",
-    limitations_short:"No empirical evaluation; effectiveness depends on local context.", url_or_doi:""
-  },
-  {
-    paper_id:"JacobEtAl_2022", year:2022, title:"Intersectional Development of CS Identities in Young Latinas",
-    authors:"Jacob et al.", country:"USA", state:"", grade_band:"3-5",
-    population_focus:"Latinx; girls; low-income; EL", course_or_context:"regular class (year-long CT/CS units)",
-    tool_language:"Scratch; Code.org", study_type:"mixed-methods", n_students:50, n_teachers:7, n_sites:7,
-    outcome_type:"identity/interest", result_direction:"positive",
-    key_findings:"Significant gains in CS identity (experience, self-belief, family support); interviews underscore family/peer roles.",
-    limitations_short:"Small N; no control; survey adapted from science; possible ceiling effects.", url_or_doi:""
-  },
-  {
-    paper_id:"DeLiraEtAl_2022", year:2022, title:"Summer Programming Camps in a Rural Community",
-    authors:"De Lira et al.", country:"USA", state:"WA", grade_band:"6-8", population_focus:"rural; gender",
-    course_or_context:"informal camp (1 week)", tool_language:"Python",
-    study_type:"pre–post within-subjects", n_students:19, n_teachers:null, n_sites:1,
-    outcome_type:"learning; interest", result_direction:"positive/mixed",
-    key_findings:"Large gains in programming knowledge (d≈0.93); only proficiency self-belief increased.",
-    limitations_short:"Small, self-selected sample; short duration; informal setting; no long-term follow-up.", url_or_doi:""
-  },
-  {
-    paper_id:"RichEtAl_2019", year:2019, title:"The Landscape of Computing Education in Utah",
-    authors:"Rich et al.", country:"USA", state:"UT", grade_band:"K-12", population_focus:"girls; mixed",
-    course_or_context:"statewide offerings (AP CSP/CSA; ECS)", tool_language:"",
-    study_type:"mixed (survey + admin)", n_students:null, n_teachers:null, n_sites:null,
-    outcome_type:"access/participation", result_direction:"descriptive",
-    key_findings:"Female HS CS enrollment rose to ~34%; seniors with ≥1 CS course ~20% by 2018; AP CSP rollout boosted participation.",
-    limitations_short:"~1/3 schools responded; optional items; not causal.", url_or_doi:""
-  },
-  {
-    paper_id:"RutsteinEtAl_2019", year:2019, title:"Developing Implementation Measures for K–12 CS Curriculum",
-    authors:"Rutstein et al.", country:"USA", state:"", grade_band:"9-12", population_focus:"mixed",
-    course_or_context:"ECS (Units 1–4)", tool_language:"Web; Varied",
-    study_type:"HLM + teacher/student surveys + assessments", n_students:null, n_teachers:53, n_sites:null,
-    outcome_type:"learning; teacher practice", result_direction:"mixed/nuanced",
-    key_findings:"Higher inquiry/collaboration indices link to better unit outcomes; tech access constraints shape lesson choices.",
-    limitations_short:"Self-report; unit-specific effects; modest sample size.", url_or_doi:""
-  },
-  // --- NEW PAPERS TO APPEND ---
-  {
-    paper_id:"RaviEtAl_2024",
-    year:2024,
-    title:"“Data comes from the real world”: A Constructionist Approach to Mainstreaming K-12 Data Science Education",
-    authors:"Ravi et al.",
-    country:"USA", state:"",
-    grade_band:"9-12",
-    population_focus:"mixed; disability",
-    course_or_context:"regular HS science classes (curriculum description)",
-    tool_language:"MIT App Inventor; AI Chat",
-    study_type:"curriculum/session description",
-    n_students:null, n_teachers:null, n_sites:null,
-    outcome_type:"learning",
-    result_direction:"descriptive/no outcomes",
-    key_findings:"Project-based data collection/cleaning → modeling/critique/prediction; authentic local data lowers barriers; emphasizes critique and near-term predictions.",
-    limitations_short:"No empirical evaluation yet; scope notes on ethics, messy data, teacher time, and mobile accessibility trade-offs.",
-    url_or_doi:""
-  },
-  {
-    paper_id:"Adams_2010",
-    year:2010,
-    title:"Scratching Middle Schoolers’ Creative Itch",
-    authors:"Adams",
-    country:"USA", state:"",
-    grade_band:"6-8",
-    population_focus:"mixed; disability",
-    course_or_context:"single-sex summer day camps (Imaginary Word Camps)",
-    tool_language:"Scratch",
-    study_type:"experience report/classroom study (descriptive)",
-    n_students:null, n_teachers:null, n_sites:2,
-    outcome_type:"engagement; learning",
-    result_direction:"mixed/nuanced",
-    key_findings:"Scratch lowered entry compared to Alice; stories/game projects showed positive engagement; accessibility via Scratch allowed deep involvement for some blind students.",
-    limitations_short:"Prior experience confound; IDE limitations; no comparison/control; assessment mostly descriptive.",
-    url_or_doi:""
-  },
-  {
-    paper_id:"WeintropWilensky_2017",
-    year:2017,
-    title:"Comparing Block-Based and Text-Based Programming in High School Computer Science Classrooms",
-    authors:"Weintrop & Wilensky",
-    country:"USA", state:"",
-    grade_band:"9-12",
-    population_focus:"mixed",
-    course_or_context:"Intro CS course (two classrooms, 5-week unit)",
-    tool_language:"Scratch; Pencil",
-    study_type:"commutative assessment + surveys (quasi-experimental, two classes)",
-    n_students:60, n_teachers:1, n_sites:1,
-    outcome_type:"learning; attitudes",
-    result_direction:"mixed/nuanced",
-    key_findings:"Similar scores overall; text-based group scored higher on comprehension; block-based group reported greater desire to take more CS.",
-    limitations_short:"Short 5-week window; single selective public school; constrained to Pencil.cc; teacher choice of methods may vary.",
-    url_or_doi:""
-  },
-  {
-    paper_id:"RepenningEtAl_2010",
-    year:2010,
-    title:"Scalable game design and a checklist for getting computational thinking into public schools",
-    authors:"Repenning et al.",
-    country:"USA", state:"",
-    grade_band:"6-8",
-    population_focus:"mixed;",
-    course_or_context:"iDREAMS project across 19 middle schools",
-    tool_language:"AgentSheets/AgentCubes (visual ABM)",
-    study_type:"design framework + checklist (descriptive)",
-    n_students:null, n_teachers:null, n_sites:19,
-    outcome_type:"access/participation",
-    result_direction:"descriptive",
-    key_findings:"Computational Thinking Tool checklist (low threshold, high ceiling, equity, sustainability) to broaden access via scalable game design.",
-    limitations_short:"Primarily framework/implementation notes; limited empirical outcomes at time of paper.",
-    url_or_doi:""
-  },
-  {
-    paper_id:"KafaiEtAl_2014_eTextiles",
-    year:2014,
-    title:"A Crafts-Oriented Approach to Computing in High School: Introducing Computational Concepts, Practices, and Perspectives with Electronic Textiles",
-    authors:"Kafai et al.",
-    country:"USA", state:"",
-    grade_band:"9-12",
-    population_focus:"mixed",
-    course_or_context:"Elective CS class (10-week)",
-    tool_language:"Arduino; Modkit",
-    study_type:"mixed (artifacts + interviews)",
-    n_students:15, n_teachers:1, n_sites:1,
-    outcome_type:"identity/interest; learning",
-    result_direction:"positive/mixed",
-    key_findings:"Students produced personally relevant crafts; reported shifting perceptions of CS as creative and connected to lives; evidence of CT practices (circuits, debugging, design).",
-    limitations_short:"Short course; emphasis on crafts may reduce time on formal concepts; some results context-specific.",
-    url_or_doi:""
-  },
-  {
-    paper_id:"Ryoo_2019",
-    year:2019,
-    title:"Pedagogy that Supports Computer Science for All",
-    authors:"Ryoo",
-    country:"USA", state:"CA",
-    grade_band:"9-12",
-    population_focus:"mixed",
-    course_or_context:"Exploring Computer Science (3 HS classrooms)",
-    tool_language:"Varied; Circuits",
-    study_type:"qualitative (grounded theory; observations + interviews)",
-    n_students:70, n_teachers:3, n_sites:3,
-    outcome_type:"engagement; identity/interest",
-    result_direction:"positive",
-    key_findings:"Justice-centered, culturally relevant pedagogy demystified CS, connected to everyday life, and amplified student voice → engagement and agency.",
-    limitations_short:"Practices may be hard to replicate without teacher PD; some misalignment with all five CRP tenets noted.",
-    url_or_doi:""
-  },
-  {
-    paper_id:"WangMoghadam_2017",
-    year:2017,
-    title:"Diversity Barriers in K-12 Computer Science Education: Structural and Social",
-    authors:"Wang & Moghadam",
-    country:"USA", state:"",
-    grade_band:"K-12",
-    population_focus:"Black; Latinx; gender",
-    course_or_context:"Statewide surveys (students, parents, teachers, principals, superintendents)",
-    tool_language:"",
-    study_type:"large-scale survey (multi-year)",
-    n_students:1672, n_teachers:1008, n_sites:null,
-    outcome_type:"access/participation; attitudes",
-    result_direction:"descriptive",
-    key_findings:"Interest higher for boys; access often via after-school CS; encouragement from teachers/parents linked to interest; awareness gaps for girls.",
-    limitations_short:"Survey design varies across years; observational—no causality.",
-    url_or_doi:""
-  },
-  {
-    paper_id:"EreteEtAl_2024",
-    year:2024,
-    title:"Applying a Transformative Justice Approach to Encourage the Participation of Black and Latina Girls in Computing",
-    authors:"Erete et al.",
-    country:"USA", state:"IL",
-    grade_band:"6-12",
-    population_focus:"Black; Latinx; girls",
-    course_or_context:"Digital Youth Divas program (out-of-school)",
-    tool_language:"Varied creative tech",
-    study_type:"framework/position + design principles",
-    n_students:null, n_teachers:null, n_sites:null,
-    outcome_type:"identity/interest; access/participation",
-    result_direction:"descriptive",
-    key_findings:"Justice-oriented principles: acknowledge histories of harm; counter stereotypes; build sustainable community capacity.",
-    limitations_short:"Not a new empirical study; relies on program field notes and prior evidence.",
-    url_or_doi:""
-  },
-  {
-    paper_id:"GretterEtAl_2019",
-    year:2019,
-    title:"Equitable Learning Environments in K-12 Computing: Teachers’ Views on Barriers to Diversity",
-    authors:"Gretter et al.",
-    country:"USA", state:"",
-    grade_band:"9-12",
-    population_focus:"teachers",
-    course_or_context:"Interviews with HS CS teachers (N≈23)",
-    tool_language:"",
-    study_type:"qualitative interviews",
-    n_students:null, n_teachers:23, n_sites:null,
-    outcome_type:"teacher practice; access/participation",
-    result_direction:"descriptive",
-    key_findings:"Teachers cited gender, ethnicity, SES, demographics, and recruitment practices as key barriers; discussed classroom strategies for inclusion.",
-    limitations_short:"Teacher testimony only; no student data; regional generalizability limits.",
-    url_or_doi:""
-  },
-  {
-    paper_id:"VogelEtAl_2019",
-    year:2019,
-    title:"The Role of Translanguaging in Computational Literacies",
-    authors:"Vogel et al.",
-    country:"USA", state:"",
-    grade_band:"6-8",
-    population_focus:"bilingual",
-    course_or_context:"CS classroom observations (>50 hours)",
-    tool_language:"Scratch; varied classroom activities",
-    study_type:"qualitative (moment analysis; interviews/fieldnotes)",
-    n_students:null, n_teachers:null, n_sites:null,
-    outcome_type:"identity/interest; learning (CT practices)",
-    result_direction:"descriptive/positive",
-    key_findings:"Students leverage full linguistic resources to engage in CT (e.g., remixing, abstraction); computational literacies intertwine with other literacies.",
-    limitations_short:"No quantitative learning outcomes; small convenience samples.",
-    url_or_doi:""
-  },
-  {
-    paper_id:"NorthrupEtAl_2022", year:2022, title:"Identifying Implementation Challenges for a New Rural Computer Science Curriculum in Rural Western Regions of the United States",
-    authors:"Northrup et al.", country:"USA", state:"", grade_band:"K-12",
-    population_focus:"teachers; rural",
-    course_or_context:"CS educator training",
-    tool_language:"Python; Scratch", study_type:"qualitative (interviews/focus groups)", n_students:null, n_teachers:13, n_sites:1,
-    outcome_type:"", result_direction:"",
-    key_findings:"", limitations_short:"", url_or_doi:""
-  },
-  {
-    paper_id:"KochEtAl_2012", year:2012, title:"Scaling and Sustaining an Afterschool Computer ScienceProgram for Girls",
-    authors:"Koch et al.", country:"USA", state:"", grade_band:"K-12",
-    population_focus:"girls",
-    course_or_context:"Afterschool",
-    tool_language:"", study_type:"qualitative (interviews/focus groups)", n_students:2000, n_teachers:31, n_sites:33,
-    outcome_type:"", result_direction:"",
-    key_findings:"", limitations_short:"", url_or_doi:""
-  },
-  {
-    paper_id:"MasterEtAl_2023", year:2023, title:"Gender equity and motivational readiness for computational thinking in early childhood",
-    authors:"Master et al.", country:"USA", state:"", grade_band:"1-3",
-    population_focus:"gender",
-    course_or_context:"",
-    tool_language:"Scratch; Kodable", study_type:"", n_students:363, n_teachers:null, n_sites:null,
-    outcome_type:"", result_direction:"",
-    key_findings:"", limitations_short:"", url_or_doi:""
-  },
-  {
-    paper_id:"LeonardEtAl_2017", year:2017, title:"Developing Teachers' Computational Thinking Beliefs and Engineering Practices Through Game Design and Robotics",
-    authors:"Leonard et al.", country:"USA", state:"Wyoming; Pennsylvania", grade_band:"3-5",
-    population_focus:"rural",
-    course_or_context:"Afterschool",
-    tool_language:"LEGO", study_type:"", n_students:531, n_teachers:30, n_sites:null,
-    outcome_type:"", result_direction:"",
-    key_findings:"", limitations_short:"", url_or_doi:""
-  },
-
-  // --- IEEE PAPERS ---
-  {
-    paper_id:"MadkinsEtAl_2019", year:2019, title:"Culturally Relevant Computer Science Pedagogy: From Theory to Practice",
-    authors:"Madkins et al.", country:"USA", state:"California", grade_band:"",
-    population_focus:"girls; mixed",
-    course_or_context:"",
-    tool_language:"", study_type:"", n_students:398, n_teachers:15, n_sites:3,
-    outcome_type:"", result_direction:"",
-    key_findings:"", limitations_short:"", url_or_doi:""
-  },
-  {
-    paper_id:"SullivanEtAl_2015", year:2015, title:"CodePlus — Designing an after school computing programme for girls",
-    authors:"Sullivan et al.", country:"USA", state:"", grade_band:"9-12",
-    population_focus:"girls",
-    course_or_context:"",
-    tool_language:"Scratch", study_type:"", n_students:164, n_teachers:null, n_sites:null,
-    outcome_type:"", result_direction:"",
-    key_findings:"", limitations_short:"", url_or_doi:""
-  },
-  {
-    paper_id:"KellerJohn_2019", year:2019, title:"How Can Computer Science Faculties Increase the Proportion of Women in Computer Science by Using Robots?",
-    authors:"Keller & John", country:"USA", state:"", grade_band:"9-12",
-    population_focus:"girls",
-    course_or_context:"",
-    tool_language:"Robotics", study_type:"", n_students:57, n_teachers:null, n_sites:null,
-    outcome_type:"", result_direction:"",
-    key_findings:"", limitations_short:"", url_or_doi:""
-  },
-  {
-    paper_id:"BuffumEtAl_2015", year:2015, title:" Leveraging collaboration to improve gender equity in a game-based learning environment for middle school computer science",
-    authors:"Buffum et al.", country:"USA", state:"", grade_band:"6-8",
-    population_focus:"gender",
-    course_or_context:"",
-    tool_language:"Engage", study_type:"", n_students:76, n_teachers:null, n_sites:null,
-    outcome_type:"", result_direction:"",
-    key_findings:"", limitations_short:"", url_or_doi:""
-  },
-  {
-    paper_id:"WashingtonEtAl_2020", year:2020, title:"Understanding How to Engage Black HS Boys in Computer Science Through Tech Innovation and Entrepreneurship",
-    authors:"Washington et al.", country:"USA", state:"Maryland", grade_band:"9-12",
-    population_focus:"Black",
-    course_or_context:"",
-    tool_language:"", study_type:"", n_students:20, n_teachers:null, n_sites:null,
-    outcome_type:"", result_direction:"",
-    key_findings:"", limitations_short:"", url_or_doi:""
-  },
-  {
-    paper_id:"CohoonEtAl_2011", year:2011, title:"Focusing high school teachers on attracting diverse students to computer science and engineering",
-    authors:"Cohoon et al.", country:"USA", state:"", grade_band:"9-12",
-    population_focus:"girls",
-    course_or_context:"Workshop",
-    tool_language:"", study_type:"", n_students:null, n_teachers:90, n_sites:null,
-    outcome_type:"", result_direction:"",
-    key_findings:"", limitations_short:"", url_or_doi:""
-  },
-  {
-    paper_id:"EreteEtAl_2016", year:2016, title:"Exploring the use of interactive narratives to engage inner-city girls in computational activities",
-    authors:"Erete et al.", country:"USA", state:"", grade_band:"6-8",
-    population_focus:"girls",
-    course_or_context:"",
-    tool_language:"Arduino", study_type:"", n_students:16, n_teachers:null, n_sites:null,
-    outcome_type:"", result_direction:"",
-    key_findings:"", limitations_short:"", url_or_doi:""
-  },
-  {
-    paper_id:"WilleEtAl_2016", year:2016, title:"Computer Science Principles (CSP) and students with learning differences: Expanding opportunities for a hidden underrepresented group",
-    authors:"Wille et al.", country:"USA", state:"Illinois", grade_band:"9-12",
-    population_focus:"mixed; disability",
-    course_or_context:"",
-    tool_language:"", study_type:"", n_students:87, n_teachers:null, n_sites:null,
-    outcome_type:"", result_direction:"",
-    key_findings:"", limitations_short:"", url_or_doi:""
-  },
-  {
-    paper_id:"Raigoza_2018", year:2018, title:" An Experience Report on Running a Pre-College Computer Science Summer Program",
-    authors:"Raigoza", country:"USA", state:"California", grade_band:"9-12",
-    population_focus:"Latinx",
-    course_or_context:"Summer program",
-    tool_language:"Python; JavaScript", study_type:"", n_students:21, n_teachers:null, n_sites:null,
-    outcome_type:"", result_direction:"",
-    key_findings:"", limitations_short:"", url_or_doi:""
-  },
-  /*{
-    paper_id:"KrossGuo_2019", year:2019, title:"End-User Programmers Repurposing End-User Programming Tools to Foster Diversity in Adult End-User Programming Education",
-    authors:"", country:"USA", state:"", grade_band:"",
-    population_focus:"",
-    course_or_context:"",
-    tool_language:"", study_type:"", n_students:null, n_teachers:null, n_sites:null,
-    outcome_type:"", result_direction:"",
-    key_findings:"", limitations_short:"", url_or_doi:""
-  },*/
-  {
-    paper_id:"Kamberi_2017", year:2017, title:"Enticing Women to Computer Science with Es (Expose, Engage, Encourage, Empower)",
-    authors:"Kamberi", country:"USA", state:"", grade_band:"K-12",
-    population_focus:"",
-    course_or_context:"",
-    tool_language:"", study_type:"Literature Review", n_students:null, n_teachers:null, n_sites:null,
-    outcome_type:"", result_direction:"",
-    key_findings:"", limitations_short:"", url_or_doi:""
-  },
-  {
-    paper_id:"Broneak Rosato_2021", year:2021, title:"Experiences of Rural CS Principles Educators",
-    authors:"Broneak & Rosato", country:"USA", state:"", grade_band:"9-12",
-    population_focus:"rural",
-    course_or_context:"",
-    tool_language:"", study_type:"", n_students:null, n_teachers:21, n_sites:null,
-    outcome_type:"", result_direction:"",
-    key_findings:"", limitations_short:"", url_or_doi:""
-  },
-  {
-    paper_id:"YoungEtAl_2017", year:2017, title:"Leveraging a multi-partner approach to develop successful STEM outreach programs",
-    authors:"Young et al.", country:"USA", state:"", grade_band:"",
-    population_focus:"",
-    course_or_context:"",
-    tool_language:"", study_type:"", n_students:null, n_teachers:null, n_sites:null,
-    outcome_type:"", result_direction:"",
-    key_findings:"", limitations_short:"", url_or_doi:""
-  }
-  /*
-  {
-    paper_id:"", year:2017, title:"",
-    authors:"", country:"USA", state:"", grade_band:"",
-    population_focus:"",
-    course_or_context:"",
-    tool_language:"", study_type:"", n_students:null, n_teachers:null, n_sites:null,
-    outcome_type:"", result_direction:"",
-    key_findings:"", limitations_short:"", url_or_doi:""
-  },
-  */
-];
-
 // ---------- Helpers ----------
 const uniq = a => Array.from(new Set(a));
 const norm = s => (s ?? "").toString().trim();
 const split = s => norm(s).split(";").map(d=>d.trim()).filter(Boolean);
 
+function getGrades(d){
+  if (Array.isArray(d.grades)) {
+    return uniq(
+      d.grades
+        .map(g => Number(g))
+        .filter(g => Number.isInteger(g) && g >= 0 && g <= 12)
+    ).sort((a,b) => a - b);
+  }
+  return [];
+}
+
+function gradeLabel(g){
+  return g === 0 ? "K" : String(g);
+}
+
+function formatGrades(grades){
+  if (!grades.length) return "";
+  return grades.map(gradeLabel).join(", ");
+}
+
 // Build exploded rows for multi-valued columns (population & tool)
 const rows = DATA.flatMap(d => {
-  const pops = split(d.population_focus); const tools = split(d.tool_language);
+  const pops = split(d.population_focus);
+  const tools = split(d.tool_language);
   const P = pops.length ? pops : [null];
   const T = tools.length ? tools : [null];
   return P.flatMap(p => T.map(t => ({...d, population_focus:p, tool_language:t})));
 });
 
 // ---------- UI population ----------
-const gradeBands = uniq(rows.map(d=>norm(d.grade_band))).filter(Boolean).sort((a,b)=>["K-2","3-5","6-8","9-12","K-12","multi"].indexOf(a)-["K-2","3-5","6-8","9-12","K-12","multi"].indexOf(b));
-const pops = uniq(rows.flatMap(d=> split(d.population_focus))).filter(Boolean).sort();
-const tools = uniq(rows.flatMap(d=> split(d.tool_language))).filter(Boolean).sort();
-const types = uniq(rows.map(d=>norm(d.study_type))).filter(Boolean).sort();
-const states = uniq(rows.map(d => norm(d.state))).filter(Boolean).sort();   // ← compute here
+const gradeOptions = d3.range(0, 13).map(g => ({ value: String(g), label: gradeLabel(g) }));
+const pops = uniq(rows.flatMap(d => split(d.population_focus))).filter(Boolean).sort();
+const tools = uniq(rows.flatMap(d => split(d.tool_language))).filter(Boolean).sort();
+const types = uniq(rows.map(d => norm(d.study_type))).filter(Boolean).sort();
+const states = uniq(rows.map(d => norm(d.state))).filter(Boolean).sort();
 
-function addOptions(sel, list){ sel.innerHTML = list.map(v=>`<option>${v}</option>`).join(""); }
-addOptions(document.getElementById("gradeSel"), gradeBands);
-addOptions(document.getElementById("popSel"), pops);
-addOptions(document.getElementById("toolSel"), tools);
-addOptions(document.getElementById("typeSel"), types);
-addOptions(document.getElementById("stateSel"), states);
+function addOptions(sel, list){
+  sel.innerHTML = list.map(v => `<option value="${v.value}">${v.label}</option>`).join("");
+}
+function addSimpleOptions(sel, list){
+  sel.innerHTML = list.map(v=>`<option>${v}</option>`).join("");
+}
+
+addOptions(document.getElementById("gradeSel"), gradeOptions);
+addSimpleOptions(document.getElementById("popSel"), pops);
+addSimpleOptions(document.getElementById("toolSel"), tools);
+addSimpleOptions(document.getElementById("typeSel"), types);
+addSimpleOptions(document.getElementById("stateSel"), states);
 
 // ---------- Filtering ----------
 function getMulti(sel){ return Array.from(sel.selectedOptions).map(o=>o.value); }
@@ -631,7 +203,7 @@ function currentFilter(){
   return {
     yearMin:+document.getElementById("yearMin").value || 1900,
     yearMax:+document.getElementById("yearMax").value || 2100,
-    grades:getMulti(document.getElementById("gradeSel")),
+    grades:getMulti(document.getElementById("gradeSel")).map(Number),
     pops:getMulti(document.getElementById("popSel")),
     tools:getMulti(document.getElementById("toolSel")),
     types:getMulti(document.getElementById("typeSel")),
@@ -645,14 +217,27 @@ function applyHash(hash){
   const num=(k,def)=>+p.get(k)||def;
   document.getElementById("yearMin").value = num("y0",2010);
   document.getElementById("yearMax").value = num("y1",2025);
-  const setSel=(id,vals)=>{const s=document.getElementById(id); const set=new Set((p.get(vals)||"").split(",").filter(Boolean)); Array.from(s.options).forEach(o=>o.selected=set.has(o.value));};
-  setSel("gradeSel","g"); setSel("popSel","p"); setSel("toolSel","t"); setSel("typeSel","s"); setSel("stateSel","st");   // ← new
+  const setSel=(id,vals)=>{
+    const s=document.getElementById(id);
+    const set=new Set((p.get(vals)||"").split(",").filter(Boolean));
+    Array.from(s.options).forEach(o=>o.selected=set.has(o.value));
+  };
+  setSel("gradeSel","g");
+  setSel("popSel","p");
+  setSel("toolSel","t");
+  setSel("typeSel","s");
+  setSel("stateSel","st");
 }
 
 function makeHash(f){
   const qp = new URLSearchParams({
-    y0:f.yearMin, y1:f.yearMax,
-    g:f.grades.join(","), p:f.pops.join(","), t:f.tools.join(","), s:f.types.join(","), st:f.states.join(",")
+    y0:f.yearMin,
+    y1:f.yearMax,
+    g:f.grades.join(","),
+    p:f.pops.join(","),
+    t:f.tools.join(","),
+    s:f.types.join(","),
+    st:f.states.join(",")
   });
   return "#"+qp.toString();
 }
@@ -660,191 +245,227 @@ function makeHash(f){
 // ---------- Render ----------
 function render(){
   const f = currentFilter();
-  // Filter rows
-  const F = rows.filter(d =>
-    (!d.year || (d.year>=f.yearMin && d.year<=f.yearMax)) &&
-    (!f.grades.length || f.grades.includes(norm(d.grade_band))) &&
-    (!f.pops.length || f.pops.includes(norm(d.population_focus))) &&
-    (!f.tools.length || f.tools.includes(norm(d.tool_language))) &&
-    (!f.types.length || f.types.includes(norm(d.study_type))) &&
-    (!f.states.length || f.states.includes(norm(d.state)))
-  );
 
-  // KPIs
+  const F = rows.filter(d => {
+    const grades = getGrades(d);
+    return (
+      (!d.year || (d.year >= f.yearMin && d.year <= f.yearMax)) &&
+      (!f.grades.length || grades.some(g => f.grades.includes(g))) &&
+      (!f.pops.length || f.pops.includes(norm(d.population_focus))) &&
+      (!f.tools.length || f.tools.includes(norm(d.tool_language))) &&
+      (!f.types.length || f.types.includes(norm(d.study_type))) &&
+      (!f.states.length || f.states.includes(norm(d.state)))
+    );
+  });
+
   d3.select("#kpiPapers").text(uniq(F.map(d=>d.paper_id)).length);
   const years = F.map(d=>d.year).filter(Boolean);
-  d3.select("#kpiYears").text(years.length? (d3.min(years)+"–"+d3.max(years)) : "–");
+  d3.select("#kpiYears").text(years.length ? (d3.min(years)+"–"+d3.max(years)) : "–");
   const places = uniq(F.map(d => norm(d.state))).filter(Boolean);
   d3.select("#kpiPlaces").text(places.length || "–");
   const avgN = d3.mean(F.map(d=>d.n_students).filter(d=>d!=null));
-  d3.select("#kpiN").text(avgN? Math.round(avgN) : "–");
+  d3.select("#kpiN").text(avgN ? Math.round(avgN) : "–");
 
-// Grade distribution (100% stacked with hover tooltip)
-{
-  // de-duplicate by paper_id, then count per grade band
-  const counts = d3.rollups(
-    F,
-    v => new Set(v.map(d => d.paper_id)).size,
-    d => d.grade_band
-  )
-  .map(([grade, count]) => ({ grade, count }))
-  .filter(d => d.grade); // drop null/undefined
+    // Grade distribution
+  {
+    const paperGradeRows = uniq(F.map(d => d.paper_id)).flatMap(pid => {
+      const paper = F.find(d => d.paper_id === pid);
+      return getGrades(paper).map(g => ({
+        paper_id: pid,
+        grade: g,
+        grade_label: gradeLabel(g)
+      }));
+    });
 
-  const total = d3.sum(counts, d => d.count);
-  const G = counts
-    .map(d => ({ ...d, prop: d.count / total }))
-    // sort by your preferred order
-    .sort((a, b) =>
-      ["K-2","3-5","6-8","9-12","K-12","multi"].indexOf(a.grade) -
-      ["K-2","3-5","6-8","9-12","K-12","multi"].indexOf(b.grade)
-    );
+    const totalPapers = uniq(F.map(d => d.paper_id)).length;
 
-  const gradePlot = Plot.plot({
-    title: "Distribution by Grade Band",
-    height: 260,
-    marginLeft: 60,
-    x: {label: "% of filtered papers →", percent: true, grid: false},
-    y: {label: null},
-    color: {scheme: "blues"},
-    marks: [
-      // bars
-      Plot.barX(G, {
-        x: "prop",
-        y: "grade",
-        tip: true, // ← enables tooltip on hover
-        title: d =>
-          `${d.grade}\n${(d.prop * 100).toFixed(1)}%  (${d.count} paper${d.count === 1 ? "" : "s"})`
-      }),
-      Plot.ruleX([0])
-    ]
-  });
+    const counts = d3.rollups(
+      paperGradeRows,
+      v => new Set(v.map(d => d.paper_id)).size,
+      d => d.grade
+    )
+    .map(([grade, count]) => ({
+      grade,
+      grade_label: gradeLabel(grade),
+      count,
+      prop: totalPapers ? count / totalPapers : 0
+    }))
+    .sort((a, b) => a.grade - b.grade);
 
-  mount("#gradePlot", gradePlot);
-}
-
-
-// Timeline by outcome type (STACKED BARS — discrete counts)
-{
-  // Ensure we show integer years on the axis
-  const yrs = F.map(d => d.year).filter(Boolean);
-  const xDomain = yrs.length ? d3.range(d3.min(yrs), d3.max(yrs) + 1) : [];
-
-  const timeline = Plot.plot({
-    title: "Timeline by Outcome Type (count)",
-    height: 260,
-    marginLeft: 50,
-    color: { legend: true },
-    x: { label: "year →", domain: xDomain, tickFormat: d3.format("d") },
-    y: { label: "count ↑", grid: true, nice: true },
-    marks: [
-      // stacked by default when multiple bars share the same x with different fill
-      Plot.barY(
-        F,
-        Plot.groupX({ y: "count" }, { x: "year", fill: "outcome_type", tip: true })
-      ),
-      Plot.ruleY([0])
-    ]
-  });
-
-  mount("#timelinePlot", timeline);
-}
-
-// ---- Places: auto U.S. choropleth (fallback to a bar list) ----
-{
-  const placeKey = d => (norm(d.state) || norm(d.country) || null);
-  const countsAll = d3.rollups(
-    F,
-    v => new Set(v.map(d => d.paper_id)).size,
-    placeKey
-  ).filter(([k]) => k);
-
-  // 2-letter state codes only
-  const stateCounts = new Map(countsAll.filter(([k]) => k.length === 2));
-
-  if (US_TOPO && stateCounts.size) {
-    const states = topojson.feature(US_TOPO, US_TOPO.objects.states).features;
-    const max = d3.max(stateCounts.values()) || 1;
-    const color = d3.scaleSequential([0, max], d3.interpolateBlues);
-
-    const usPlot = Plot.plot({
-      title: "U.S. states (paper count)",
-      height: 260,
-      projection: "albers-usa",
-      inset: 6,
+    const gradePlot = Plot.plot({
+      title: "Distribution by Grade",
+      height: 320,
+      marginLeft: 60,
+      x: { label: "% of filtered papers →", percent: true, grid: false },
+      y: {
+        label: null,
+        domain: counts.map(d => d.grade_label)
+      },
+      color: { scheme: "blues" },
       marks: [
-        Plot.geo(states, {
-          fill: d => color(stateCounts.get(FIPS_TO_USPS[+d.id]) || 0),
-          stroke: "#2a2f3a",
+        Plot.barX(counts, {
+          x: "prop",
+          y: "grade_label",
           tip: true,
-          title: d => {
-            const code = FIPS_TO_USPS[+d.id];
-            const n = stateCounts.get(code) || 0;
-            return `${code ?? d.properties.name}: ${n} paper${n === 1 ? "" : "s"}`;
-          }
+          title: d =>
+            `${d.grade_label}\n${(d.prop * 100).toFixed(1)}% of filtered papers (${d.count} paper${d.count === 1 ? "" : "s"})`
         }),
-        Plot.geo(topojson.mesh(US_TOPO, US_TOPO.objects.states, (a,b)=>a!==b), { stroke:"#1f2430" })
+        Plot.ruleX([0])
       ]
     });
-    mount("#placePlot", usPlot);
-  } else {
-    // Fallback bar list
-    const top = countsAll.sort((a,b)=>d3.descending(a[1],b[1])).slice(0,12);
-    const placeBar = Plot.plot({
-      title: "Top locations (count)",
-      height: 260,
-      marginLeft: 160,
-      x: { label: "papers →", grid: true, nice: true },
-      y: { tickSize: 0 },
-      marks: [
-        Plot.barX(top, { x: d=>d[1], y: d=>d[0], fill:"#6ea8fe", tip:true,
-          title: d => `${d[0]}: ${d[1]} paper${d[1]===1?"":"s"}` }),
-        Plot.text(top, { x:d=>d[1], y:d=>d[0], text:d=>d[1], dx:6, fill:"white" })
-      ]
-    });
-    mount("#placePlot", placeBar);
+
+    mount("#gradePlot", gradePlot);
   }
-}
 
+  // Timeline
+  {
+    const yrs = F.map(d => d.year).filter(Boolean);
+    const xDomain = yrs.length ? d3.range(d3.min(yrs), d3.max(yrs) + 1) : [];
 
+    const timeline = Plot.plot({
+      title: "Timeline by Outcome Type (count)",
+      height: 260,
+      marginLeft: 50,
+      color: { legend: true },
+      x: { label: "year →", domain: xDomain, tickFormat: d3.format("d") },
+      y: { label: "count ↑", grid: true, nice: true },
+      marks: [
+        Plot.barY(
+          F,
+          Plot.groupX({ y: "count" }, { x: "year", fill: "outcome_type", tip: true })
+        ),
+        Plot.ruleY([0])
+      ]
+    });
 
-// Heatmap Tools × Grade 
-const heat = Plot.plot({ 
-title: "Tools × Grade (count of papers)", 
-height: 450, 
-marginLeft: 250, 
-marginBottom: 50, 
-color: {scheme:"blues", legend:true}, 
-x: {label:null}, 
-y: {label:null}, 
-marks: [ Plot.rect(F, Plot.group({fill:"count"}, {x:"grade_band", y:"tool_language"})), Plot.text(F, Plot.group({text:"count"}, {x:"grade_band", y:"tool_language"}), {fill:"white"}) ] }); 
-mount("#heatPlot", heat);
+    mount("#timelinePlot", timeline);
+  }
 
+  // Places
+  {
+    const placeKey = d => (norm(d.state) || norm(d.country) || null);
+    const countsAll = d3.rollups(
+      F,
+      v => new Set(v.map(d => d.paper_id)).size,
+      placeKey
+    ).filter(([k]) => k);
+
+    const stateCounts = new Map(countsAll.filter(([k]) => k.length === 2));
+
+    if (US_TOPO && stateCounts.size) {
+      const states = topojson.feature(US_TOPO, US_TOPO.objects.states).features;
+      const max = d3.max(stateCounts.values()) || 1;
+      const color = d3.scaleSequential([0, max], d3.interpolateBlues);
+
+      const usPlot = Plot.plot({
+        title: "U.S. states (paper count)",
+        height: 260,
+        projection: "albers-usa",
+        inset: 6,
+        marks: [
+          Plot.geo(states, {
+            fill: d => color(stateCounts.get(FIPS_TO_USPS[+d.id]) || 0),
+            stroke: "#2a2f3a",
+            tip: true,
+            title: d => {
+              const code = FIPS_TO_USPS[+d.id];
+              const n = stateCounts.get(code) || 0;
+              return `${code ?? d.properties.name}: ${n} paper${n === 1 ? "" : "s"}`;
+            }
+          }),
+          Plot.geo(topojson.mesh(US_TOPO, US_TOPO.objects.states, (a,b)=>a!==b), { stroke:"#1f2430" })
+        ]
+      });
+      mount("#placePlot", usPlot);
+    } else {
+      const top = countsAll.sort((a,b)=>d3.descending(a[1],b[1])).slice(0,12);
+      const placeBar = Plot.plot({
+        title: "Top locations (count)",
+        height: 260,
+        marginLeft: 160,
+        x: { label: "papers →", grid: true, nice: true },
+        y: { tickSize: 0 },
+        marks: [
+          Plot.barX(top, {
+            x: d=>d[1],
+            y: d=>d[0],
+            fill:"#6ea8fe",
+            tip:true,
+            title: d => `${d[0]}: ${d[1]} paper${d[1]===1?"":"s"}`
+          }),
+          Plot.text(top, { x:d=>d[1], y:d=>d[0], text:d=>d[1], dx:6, fill:"white" })
+        ]
+      });
+      mount("#placePlot", placeBar);
+    }
+  }
+
+  // Heatmap Tools × Grade
+  {
+    const heatRows = uniq(F.map(d => d.paper_id)).flatMap(pid => {
+      const paperRows = F.filter(d => d.paper_id === pid);
+      const paper = paperRows[0];
+      const paperTools = uniq(paperRows.map(d => norm(d.tool_language))).filter(Boolean);
+      const grades = getGrades(paper);
+
+      if (!paperTools.length || !grades.length) return [];
+
+      return grades.flatMap(g =>
+        paperTools.map(t => ({
+          paper_id: pid,
+          grade: gradeLabel(g),
+          tool_language: t
+        }))
+      );
+    });
+
+    const heat = Plot.plot({
+      title: "Tools × Grade (count of papers)",
+      height: 450,
+      marginLeft: 250,
+      marginBottom: 50,
+      color: {scheme:"blues", legend:true},
+      x: {label:null},
+      y: {label:null},
+      marks: [
+        Plot.rect(
+          heatRows,
+          Plot.group({fill:"count"}, {x:"grade", y:"tool_language"})
+        ),
+        Plot.text(
+          heatRows,
+          Plot.group({text:"count"}, {x:"grade", y:"tool_language"}),
+          {fill:"white"}
+        )
+      ]
+    });
+    mount("#heatPlot", heat);
+  }
 
   // Table
-  const grouped = d3.rollup(F, v=>({
+  const grouped = d3.rollup(F, v => ({
     any:v[0],
-    grade:uniq(v.map(d=>d.grade_band)).filter(Boolean).join("; "),
+    grades:formatGrades(getGrades(v[0])),
     pops:uniq(v.map(d=>d.population_focus)).filter(Boolean).join("; "),
     tools:uniq(v.map(d=>d.tool_language)).filter(Boolean).join("; "),
-    outcomes:uniq(v.map(d=>d.outcome_type)).join("; "),
-    results:uniq(v.map(d=>d.result_direction)).join("; ")
+    outcomes:uniq(v.map(d=>d.outcome_type)).filter(Boolean).join("; "),
+    results:uniq(v.map(d=>d.result_direction)).filter(Boolean).join("; ")
   }), d=>d.paper_id);
 
   const body = d3.select("#tbl tbody").html("");
   for (const [pid, info] of grouped) {
     const d = info.any;
     const tr = body.append("tr");
-    tr.append("td").html(`<strong>${d.title}</strong><br><span class="note">${d.authors}</span>`);
+    tr.append("td").html(`<strong>${d.title}</strong><br><span class="note">${d.authors ?? ""}</span>`);
     tr.append("td").text(d.year ?? "");
-    tr.append("td").text(info.grade);
+    tr.append("td").text(info.grades);
     tr.append("td").text(info.pops);
     tr.append("td").text(info.tools);
-    tr.append("td").text(d.study_type);
+    tr.append("td").text(d.study_type ?? "");
     tr.append("td").text(`${info.outcomes} → ${info.results}`);
-    tr.append("td").html(`${d.key_findings} ${d.url_or_doi?`<br><a href="${d.url_or_doi}" target="_blank">link</a>`:""}`);
+    tr.append("td").html(`${d.key_findings ?? ""} ${d.url_or_doi ? `<br><a href="${d.url_or_doi}" target="_blank">link</a>` : ""}`);
   }
 
-  // update URL hash for sharing
   history.replaceState(null,"",makeHash(f));
 }
 
@@ -854,21 +475,23 @@ function mount(sel, plot){
   node.appendChild(plot);
 }
 
-// events
-["yearMin","yearMax","gradeSel","popSel","toolSel","typeSel", "stateSel"].forEach(id=>{
+["yearMin","yearMax","gradeSel","popSel","toolSel","typeSel","stateSel"].forEach(id=>{
   document.getElementById(id).addEventListener("input", render);
 });
+
 document.getElementById("clearBtn").addEventListener("click", ()=>{
   document.getElementById("yearMin").value = d3.min(rows.map(d=>d.year).filter(Boolean)) ?? 2010;
   document.getElementById("yearMax").value = d3.max(rows.map(d=>d.year).filter(Boolean)) ?? 2025;
-  ["gradeSel","popSel","toolSel","typeSel", "stateSel"].forEach(id => Array.from(document.getElementById(id).options).forEach(o=>o.selected=false));
+  ["gradeSel","popSel","toolSel","typeSel","stateSel"].forEach(id =>
+    Array.from(document.getElementById(id).options).forEach(o=>o.selected=false)
+  );
   render();
 });
+
 document.getElementById("copyBtn").addEventListener("click", ()=>{
   navigator.clipboard.writeText(location.href).then(()=>alert("Shareable URL copied!"));
 });
 
-// initialize from URL (so you can share filtered state)
 applyHash(location.hash);
 render();
 </script>
