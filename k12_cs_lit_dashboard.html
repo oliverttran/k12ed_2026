@@ -92,6 +92,9 @@
     <label>Study type (multi-select)</label>
     <select id="typeSel" multiple size="8"></select>
 
+    <label>Tags (multi-select)</label>
+    <select id="tagSel" multiple size="8"></select>
+
     <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn" id="clearBtn">Clear filters</button>
       <button class="btn" id="copyBtn" title="Copy current filters as URL hash">Share filters</button>
@@ -104,7 +107,7 @@
       <div class="card"><h3>Papers</h3><div id="kpiPapers" class="big">–</div></div>
       <div class="card"><h3>Years</h3><div id="kpiYears" class="big">–</div></div>
       <div class="card"><h3>States</h3><div id="kpiPlaces" class="big">–</div></div>
-      <div class="card"><h3>Avg Sample Size</h3><div id="kpiN" class="big">–</div></div>
+      <div class="card"><h3>Median Sample Size</h3><div id="kpiN" class="big">–</div></div>
     </section>
 
     <section class="grid">
@@ -146,6 +149,12 @@
 const uniq = a => Array.from(new Set(a));
 const norm = s => (s ?? "").toString().trim();
 const split = s => norm(s).split(";").map(d=>d.trim()).filter(Boolean);
+const median = a => {
+  const vals = a.filter(v => v != null && !Number.isNaN(v)).sort((x, y) => x - y);
+  if (!vals.length) return null;
+  const mid = Math.floor(vals.length / 2);
+  return vals.length % 2 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2;
+};
 
 function getGrades(d){
   if (Array.isArray(d.grades)) {
@@ -171,17 +180,43 @@ function formatGrades(grades){
 const rows = DATA.flatMap(d => {
   const pops = split(d.population_focus);
   const tools = split(d.tool_language);
+  const states = split(d.state);
+  const tags = split(d.tags);
+
   const P = pops.length ? pops : [null];
   const T = tools.length ? tools : [null];
-  return P.flatMap(p => T.map(t => ({...d, population_focus:p, tool_language:t})));
+  const S = states.length ? states : [null];
+  const G = tags.length ? tags : [null];
+
+  return P.flatMap(p =>
+    T.flatMap(t =>
+      S.flatMap(s =>
+        G.map(tag => ({
+          ...d,
+          population_focus: p,
+          tool_language: t,
+          state: s,
+          tags: tag
+        }))
+      )
+    )
+  );
 });
 
 // ---------- UI population ----------
 const gradeOptions = d3.range(0, 13).map(g => ({ value: String(g), label: gradeLabel(g) }));
 const pops = uniq(rows.flatMap(d => split(d.population_focus))).filter(Boolean).sort();
 const tools = uniq(rows.flatMap(d => split(d.tool_language))).filter(Boolean).sort();
+const tags = uniq(rows.flatMap(d => split(d.tags))).filter(Boolean).sort();
 const types = uniq(rows.map(d => norm(d.study_type))).filter(Boolean).sort();
 const states = uniq(rows.map(d => norm(d.state))).filter(Boolean).sort();
+
+addOptions(document.getElementById("gradeSel"), gradeOptions);
+addSimpleOptions(document.getElementById("popSel"), pops);
+addSimpleOptions(document.getElementById("toolSel"), tools);
+addSimpleOptions(document.getElementById("tagSel"), tags);
+addSimpleOptions(document.getElementById("typeSel"), types);
+addSimpleOptions(document.getElementById("stateSel"), states);
 
 function addOptions(sel, list){
   sel.innerHTML = list.map(v => `<option value="${v.value}">${v.label}</option>`).join("");
@@ -206,6 +241,7 @@ function currentFilter(){
     grades:getMulti(document.getElementById("gradeSel")).map(Number),
     pops:getMulti(document.getElementById("popSel")),
     tools:getMulti(document.getElementById("toolSel")),
+    tags:getMulti(document.getElementById("tagSel")),
     types:getMulti(document.getElementById("typeSel")),
     states:getMulti(document.getElementById("stateSel"))
   };
@@ -225,6 +261,7 @@ function applyHash(hash){
   setSel("gradeSel","g");
   setSel("popSel","p");
   setSel("toolSel","t");
+  setSel("tagSel","tg");
   setSel("typeSel","s");
   setSel("stateSel","st");
 }
@@ -236,12 +273,12 @@ function makeHash(f){
     g:f.grades.join(","),
     p:f.pops.join(","),
     t:f.tools.join(","),
+    tg:f.tags.join(","),
     s:f.types.join(","),
     st:f.states.join(",")
   });
   return "#"+qp.toString();
 }
-
 // ---------- Render ----------
 function render(){
   const f = currentFilter();
@@ -253,6 +290,7 @@ function render(){
       (!f.grades.length || grades.some(g => f.grades.includes(g))) &&
       (!f.pops.length || f.pops.includes(norm(d.population_focus))) &&
       (!f.tools.length || f.tools.includes(norm(d.tool_language))) &&
+      (!f.tags.length || f.tags.includes(norm(d.tags))) &&
       (!f.types.length || f.types.includes(norm(d.study_type))) &&
       (!f.states.length || f.states.includes(norm(d.state)))
     );
@@ -263,8 +301,10 @@ function render(){
   d3.select("#kpiYears").text(years.length ? (d3.min(years)+"–"+d3.max(years)) : "–");
   const places = uniq(F.map(d => norm(d.state))).filter(Boolean);
   d3.select("#kpiPlaces").text(places.length || "–");
-  const avgN = d3.mean(F.map(d=>d.n_students).filter(d=>d!=null));
-  d3.select("#kpiN").text(avgN ? Math.round(avgN) : "–");
+  //const avgN = d3.mean(F.map(d=>d.n_students).filter(d=>d!=null));
+  //d3.select("#kpiN").text(avgN ? Math.round(avgN) : "–");
+  const medN = median(F.map(d => d.n_students));
+  d3.select("#kpiN").text(medN != null ? Math.round(medN) : "–");
 
     // Grade distribution
   {
@@ -448,6 +488,7 @@ function render(){
     grades:formatGrades(getGrades(v[0])),
     pops:uniq(v.map(d=>d.population_focus)).filter(Boolean).join("; "),
     tools:uniq(v.map(d=>d.tool_language)).filter(Boolean).join("; "),
+    tags:uniq(v.map(d=>d.tags)).filter(Boolean).join("; "),
     outcomes:uniq(v.map(d=>d.outcome_type)).filter(Boolean).join("; "),
     results:uniq(v.map(d=>d.result_direction)).filter(Boolean).join("; ")
   }), d=>d.paper_id);
@@ -475,14 +516,14 @@ function mount(sel, plot){
   node.appendChild(plot);
 }
 
-["yearMin","yearMax","gradeSel","popSel","toolSel","typeSel","stateSel"].forEach(id=>{
+["yearMin","yearMax","gradeSel","popSel","toolSel","tagSel","typeSel","stateSel"].forEach(id=>{
   document.getElementById(id).addEventListener("input", render);
 });
 
 document.getElementById("clearBtn").addEventListener("click", ()=>{
   document.getElementById("yearMin").value = d3.min(rows.map(d=>d.year).filter(Boolean)) ?? 2010;
   document.getElementById("yearMax").value = d3.max(rows.map(d=>d.year).filter(Boolean)) ?? 2025;
-  ["gradeSel","popSel","toolSel","typeSel","stateSel"].forEach(id =>
+  ["gradeSel","popSel","toolSel","tagSel","typeSel","stateSel"].forEach(id =>
     Array.from(document.getElementById(id).options).forEach(o=>o.selected=false)
   );
   render();
