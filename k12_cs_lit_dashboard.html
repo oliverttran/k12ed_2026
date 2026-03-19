@@ -111,10 +111,11 @@
     </section>
 
     <section class="grid">
+      <div class="plot" id="popPlot"></div>
       <div class="plot" id="gradePlot"></div>
-      <div class="plot" id="timelinePlot"></div>
       <div class="plot" id="placePlot"></div>
       <div class="plot" id="heatPlot"></div>
+      <div class="plot" id="timelinePlot"></div>
     </section>
 
     <section class="card" style="margin-top:12px">
@@ -306,6 +307,65 @@ function render(){
   const medN = median(F.map(d => d.n_students));
   d3.select("#kpiN").text(medN != null ? Math.round(medN) : "–");
 
+  // Population distribution
+  {
+    const paperPopRows = uniq(F.map(d => d.paper_id)).flatMap(pid => {
+      const paperRows = F.filter(d => d.paper_id === pid);
+      const paper = paperRows[0];
+      const popGroups = uniq(paperRows.map(d => norm(d.population_focus))).filter(Boolean);
+
+      return popGroups.map(pop => ({
+        paper_id: pid,
+        population_focus: pop,
+        n_students: paper.n_students
+      }));
+    });
+
+    const totalPapers = uniq(F.map(d => d.paper_id)).length;
+
+    const popCounts = d3.rollups(
+      paperPopRows,
+      v => ({
+        count: new Set(v.map(d => d.paper_id)).size,
+        median_n: median(v.map(d => d.n_students))
+      }),
+      d => d.population_focus
+    )
+    .map(([population_focus, stats]) => ({
+      population_focus,
+      count: stats.count,
+      median_n: stats.median_n,
+      prop: totalPapers ? stats.count / totalPapers : 0
+    }))
+    .sort((a, b) => d3.descending(a.count, b.count) || d3.ascending(a.population_focus, b.population_focus));
+
+    const popPlot = Plot.plot({
+      title: "Distribution by Population Group",
+      height: Math.max(320, popCounts.length * 28),
+      marginLeft: 140,
+      x: { label: "% of filtered papers →", percent: true, grid: false },
+      y: {
+        label: null,
+        domain: popCounts.map(d => d.population_focus)
+      },
+      color: { scheme: "blues" },
+      marks: [
+        Plot.barX(popCounts, {
+          x: "prop",
+          y: "population_focus",
+          tip: true,
+          title: d =>
+            `${d.population_focus}
+            ${(d.prop * 100).toFixed(1)}% (${d.count} paper${d.count === 1 ? "" : "s"})
+            Median sample size: ${d.median_n != null ? Math.round(d.median_n) : "N/A"}`
+        }),
+        Plot.ruleX([0])
+      ]
+    });
+
+    mount("#popPlot", popPlot);
+  }
+
     // Grade distribution
   {
     const paperGradeRows = uniq(F.map(d => d.paper_id)).flatMap(pid => {
@@ -383,70 +443,90 @@ function render(){
 
   // Places
   {
-    const placeKey = d => (norm(d.state) || norm(d.country) || null);
-    const countsAll = d3.rollups(
-      F,
-      v => new Set(v.map(d => d.paper_id)).size,
-      placeKey
-    ).filter(([k]) => k);
+    {
+      const placeKey = d => (norm(d.state) || norm(d.country) || null);
+      const countsAll = d3.rollups(
+        F,
+        v => new Set(v.map(d => d.paper_id)).size,
+        placeKey
+      ).filter(([k]) => k);
 
-    const stateCounts = new Map(countsAll.filter(([k]) => k.length === 2));
+      const stateCounts = new Map(countsAll.filter(([k]) => k.length === 2));
 
-    if (US_TOPO && stateCounts.size) {
-      const states = topojson.feature(US_TOPO, US_TOPO.objects.states).features;
-      const max = d3.max(stateCounts.values()) || 1;
-      const color = d3.scaleSequential([0, max], d3.interpolateBlues);
+      if (US_TOPO && stateCounts.size) {
+        const states = topojson.feature(US_TOPO, US_TOPO.objects.states).features;
+        const max = d3.max(stateCounts.values()) || 1;
+        const color = d3.scaleSequential([0, max], d3.interpolateBlues);
 
-      const usPlot = Plot.plot({
-        title: "U.S. states (paper count)",
-        height: 260,
-        projection: "albers-usa",
-        inset: 6,
-        marks: [
-          Plot.geo(states, {
-            fill: d => color(stateCounts.get(FIPS_TO_USPS[+d.id]) || 0),
-            stroke: "#2a2f3a",
-            tip: true,
-            title: d => {
-              const code = FIPS_TO_USPS[+d.id];
-              const n = stateCounts.get(code) || 0;
-              return `${code ?? d.properties.name}: ${n} paper${n === 1 ? "" : "s"}`;
-            }
-          }),
-          Plot.geo(topojson.mesh(US_TOPO, US_TOPO.objects.states, (a,b)=>a!==b), { stroke:"#1f2430" })
-        ]
-      });
-      mount("#placePlot", usPlot);
-    } else {
-      const top = countsAll.sort((a,b)=>d3.descending(a[1],b[1])).slice(0,12);
-      const placeBar = Plot.plot({
-        title: "Top locations (count)",
-        height: 260,
-        marginLeft: 160,
-        x: { label: "papers →", grid: true, nice: true },
-        y: { tickSize: 0 },
-        marks: [
-          Plot.barX(top, {
-            x: d=>d[1],
-            y: d=>d[0],
-            fill:"#6ea8fe",
-            tip:true,
-            title: d => `${d[0]}: ${d[1]} paper${d[1]===1?"":"s"}`
-          }),
-          Plot.text(top, { x:d=>d[1], y:d=>d[0], text:d=>d[1], dx:6, fill:"white" })
-        ]
-      });
-      mount("#placePlot", placeBar);
+        const placeNode = document.querySelector("#placePlot");
+        const width = Math.max(320, placeNode.clientWidth - 16);
+        const height = 260;
+
+        const usPlot = Plot.plot({
+          title: "U.S. states (paper count)",
+          width,
+          height,
+          marginTop: 24,
+          marginRight: 0,
+          marginBottom: 0,
+          marginLeft: 0,
+          projection: "albers-usa",
+          marks: [
+            Plot.geo(states, {
+              fill: d => color(stateCounts.get(FIPS_TO_USPS[+d.id]) || 0),
+              stroke: "#2a2f3a",
+              tip: true,
+              title: d => {
+                const code = FIPS_TO_USPS[+d.id];
+                const n = stateCounts.get(code) || 0;
+                return `${code ?? d.properties.name}: ${n} paper${n === 1 ? "" : "s"}`;
+              }
+            }),
+            Plot.geo(topojson.mesh(US_TOPO, US_TOPO.objects.states, (a, b) => a !== b), {
+              stroke: "#1f2430"
+            })
+          ]
+        });
+
+        mount("#placePlot", usPlot);
+      } else {
+        const top = countsAll.sort((a,b)=>d3.descending(a[1],b[1])).slice(0,12);
+        const placeBar = Plot.plot({
+          title: "Top locations (count)",
+          height: 260,
+          marginLeft: 160,
+          x: { label: "papers →", grid: true, nice: true },
+          y: { tickSize: 0 },
+          marks: [
+            Plot.barX(top, {
+              x: d => d[1],
+              y: d => d[0],
+              fill: "#6ea8fe",
+              tip: true,
+              title: d => `${d[0]}: ${d[1]} paper${d[1]===1?"":"s"}`
+            }),
+            Plot.text(top, {
+              x: d => d[1],
+              y: d => d[0],
+              text: d => d[1],
+              dx: 6,
+              fill: "white"
+            })
+          ]
+        });
+        mount("#placePlot", placeBar);
+      }
     }
   }
 
   // Heatmap Tools × Grade
-  {
+  { //TODO: 
     const heatRows = uniq(F.map(d => d.paper_id)).flatMap(pid => {
       const paperRows = F.filter(d => d.paper_id === pid);
       const paper = paperRows[0];
       const paperTools = uniq(paperRows.map(d => norm(d.tool_language))).filter(Boolean);
       const grades = getGrades(paper);
+      const gradeDomain = ["K", ...d3.range(1, 13).map(String)];
 
       if (!paperTools.length || !grades.length) return [];
 
@@ -459,26 +539,56 @@ function render(){
       );
     });
 
+    const heatCounts = d3.rollups(
+      heatRows,
+      v => v.length,
+      d => d.grade,
+      d => d.tool_language
+    )
+    .flatMap(([grade, tools]) =>
+      tools.map(([tool_language, count]) => ({
+        grade,
+        tool_language,
+        count
+      }))
+    )
+    .sort((a, b) => {
+      const ga = a.grade === "K" ? 0 : +a.grade;
+      const gb = b.grade === "K" ? 0 : +b.grade;
+      return ga - gb || d3.ascending(a.tool_language, b.tool_language);
+    });
+
     const heat = Plot.plot({
       title: "Tools × Grade (count of papers)",
       height: 450,
       marginLeft: 250,
       marginBottom: 50,
-      color: {scheme:"blues", legend:true},
-      x: {label:null},
-      y: {label:null},
+      color: {
+        type: "log",
+        scheme: "rdylbu",
+        legend: true
+      },
+      x: { 
+        label: null,
+        domain: ["K", ...d3.range(1, 13).map(String)]
+      },
+      y: { label: null },
       marks: [
-        Plot.rect(
-          heatRows,
-          Plot.group({fill:"count"}, {x:"grade", y:"tool_language"})
-        ),
-        Plot.text(
-          heatRows,
-          Plot.group({text:"count"}, {x:"grade", y:"tool_language"}),
-          {fill:"white"}
-        )
+        Plot.rect(heatCounts, {
+          x: "grade",
+          y: "tool_language",
+          fill: "count",
+          inset: 0.5
+        }),
+        Plot.text(heatCounts, {
+          x: "grade",
+          y: "tool_language",
+          text: d => d.count,
+          fill: d => 2 <= d.count && d.count <= 5 ? "#222" : "#d6d6d6"
+        })
       ]
     });
+
     mount("#heatPlot", heat);
   }
 
@@ -513,6 +623,8 @@ function render(){
 function mount(sel, plot){
   const node = document.querySelector(sel);
   node.innerHTML = "";
+  plot.style.width = "100%";
+  plot.style.height = "100%";
   node.appendChild(plot);
 }
 
