@@ -3,7 +3,7 @@
 
   const US_TOPO_URL = "https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json";
   const GRADE_DOMAIN = ["K", ...d3.range(1, 13).map(String)];
-  const FILTER_SELECT_IDS = ["gradeSel", "popSel", "toolSel", "tagSel", "typeSel", "stateSel"];
+  const FILTER_SELECT_IDS = ["gradeSel", "popSel", "toolSel", "librarySel", "tagSel", "typeSel", "stateSel"];
   const FILTER_INPUT_IDS = ["yearMin", "yearMax", ...FILTER_SELECT_IDS];
 
   // FIPS -> USPS (incl. DC)
@@ -85,6 +85,7 @@
       gradeOptions: d3.range(0, 13).map(g => ({ value: String(g), label: gradeLabel(g) })),
       populations: uniq(sourceRows.flatMap(d => split(d.population_focus))).filter(Boolean).sort(),
       tools: uniq(sourceRows.flatMap(d => split(d.tool_language))).filter(Boolean).sort(),
+      libraries: uniq(sourceRows.map(d => norm(d.library))).filter(Boolean).sort(),
       tags: uniq(sourceRows.flatMap(d => split(d.tags))).filter(Boolean).sort(),
       types: uniq(sourceRows.map(d => norm(d.study_type))).filter(Boolean).sort(),
       states: uniq(sourceRows.map(d => norm(d.state))).filter(Boolean).sort()
@@ -95,6 +96,7 @@
     addOptions(el("gradeSel"), options.gradeOptions);
     addSimpleOptions(el("popSel"), options.populations);
     addSimpleOptions(el("toolSel"), options.tools);
+    addSimpleOptions(el("librarySel"), options.libraries);
     addSimpleOptions(el("tagSel"), options.tags);
     addSimpleOptions(el("typeSel"), options.types);
     addSimpleOptions(el("stateSel"), options.states);
@@ -119,6 +121,7 @@
       grades: getMulti(el("gradeSel")).map(Number),
       pops: getMulti(el("popSel")),
       tools: getMulti(el("toolSel")),
+      libraries: getMulti(el("librarySel")),
       tags: getMulti(el("tagSel")),
       types: getMulti(el("typeSel")),
       states: getMulti(el("stateSel"))
@@ -132,6 +135,7 @@
       (!f.grades.length || grades.some(g => f.grades.includes(g))) &&
       (!f.pops.length || f.pops.includes(norm(d.population_focus))) &&
       (!f.tools.length || f.tools.includes(norm(d.tool_language))) &&
+      (!f.libraries.length || f.libraries.includes(norm(d.library))) &&
       (!f.tags.length || f.tags.includes(norm(d.tags))) &&
       (!f.types.length || f.types.includes(norm(d.study_type))) &&
       (!f.states.length || f.states.includes(norm(d.state)))
@@ -160,6 +164,7 @@
     setSelection("gradeSel", "g");
     setSelection("popSel", "p");
     setSelection("toolSel", "t");
+    setSelection("librarySel", "lb");
     setSelection("tagSel", "tg");
     setSelection("typeSel", "s");
     setSelection("stateSel", "st");
@@ -172,6 +177,7 @@
       g: f.grades.join(","),
       p: f.pops.join(","),
       t: f.tools.join(","),
+      lb: f.libraries.join(","),
       tg: f.tags.join(","),
       s: f.types.join(","),
       st: f.states.join(",")
@@ -332,16 +338,16 @@
     return { countsAll, stateCounts };
   }
 
-  function buildTimelineRows(filteredRows) {
+  function buildTimelineRows(filteredRows, categoryField) {
     const deduped = new Map();
     for (const row of filteredRows) {
       const year = row.year;
-      const outcome_type = norm(row.outcome_type);
-      if (!year || !outcome_type) continue;
+      const category = norm(row[categoryField]);
+      if (!year || !category) continue;
 
-      const key = `${row.paper_id}||${year}||${outcome_type}`;
+      const key = `${row.paper_id}||${year}||${category}`;
       if (!deduped.has(key)) {
-        deduped.set(key, { paper_id: row.paper_id, year, outcome_type });
+        deduped.set(key, { paper_id: row.paper_id, year, category });
       }
     }
     return Array.from(deduped.values());
@@ -621,16 +627,16 @@
     });
   }
 
-  function buildPaperTimelinePlot(filteredRows) {
-    const timelineRows = buildTimelineRows(filteredRows);
+  function buildPaperTimelinePlot(filteredRows, { categoryField, title, legendTitle }) {
+    const timelineRows = buildTimelineRows(filteredRows, categoryField);
     const yearValues = timelineRows.map(d => d.year).filter(Boolean);
     const xDomain = yearValues.length ? d3.range(d3.min(yearValues), d3.max(yearValues) + 1) : [];
-    const outcomeDomain = uniq(timelineRows.map(d => norm(d.outcome_type))).filter(Boolean).sort(d3.ascending);
-    const outcomeRange = categoricalColors(outcomeDomain.length);
-    const outcomeColor = d3.scaleOrdinal(outcomeDomain, outcomeRange);
+    const categoryDomain = uniq(timelineRows.map(d => norm(d.category))).filter(Boolean).sort(d3.ascending);
+    const categoryRange = categoricalColors(categoryDomain.length);
+    const categoryColor = d3.scaleOrdinal(categoryDomain, categoryRange);
 
     const plot = Plot.plot({
-      title: "Timeline by Outcome Type (count)",
+      title,
       width: 1000,
       height: 420,
       marginLeft: 60,
@@ -638,13 +644,13 @@
       marginTop: 40,
       marginBottom: 55,
       style: { background: "white", color: paperTextColor(), fontSize: "14px" },
-      color: { domain: outcomeDomain, range: outcomeRange, legend: false },
+      color: { domain: categoryDomain, range: categoryRange, legend: false },
       x: { label: "Year", domain: xDomain, tickFormat: d3.format("d") },
       y: { label: "Count", grid: true, nice: true },
       marks: [
         Plot.barY(
           timelineRows,
-          Plot.groupX({ y: "count" }, { x: "year", fill: "outcome_type" })
+          Plot.groupX({ y: "count" }, { x: "year", fill: "category" })
         ),
         Plot.ruleY([0], { stroke: paperStrokeColor() })
       ]
@@ -652,23 +658,23 @@
 
     const wrapper = document.createElement("div");
     wrapper.appendChild(plot);
-    if (outcomeDomain.length) {
+    if (categoryDomain.length) {
       wrapper.appendChild(buildCategoricalLegendSvg({
-        title: "Outcome Type",
-        domain: outcomeDomain,
-        color: outcomeColor,
+        title: legendTitle,
+        domain: categoryDomain,
+        color: categoryColor,
         width: 1000
       }));
     }
     return wrapper;
   }
 
-  function buildInteractiveTimelinePlot(filteredRows) {
-    const timelineRows = buildTimelineRows(filteredRows);
+  function buildInteractiveTimelinePlot(filteredRows, { categoryField, title }) {
+    const timelineRows = buildTimelineRows(filteredRows, categoryField);
     const yearValues = timelineRows.map(d => d.year).filter(Boolean);
     const xDomain = yearValues.length ? d3.range(d3.min(yearValues), d3.max(yearValues) + 1) : [];
     return Plot.plot({
-      title: "Timeline by Outcome Type (count)",
+      title,
       height: 260,
       marginLeft: 50,
       color: { legend: true },
@@ -677,7 +683,7 @@
       marks: [
         Plot.barY(
           timelineRows,
-          Plot.groupX({ y: "count" }, { x: "year", fill: "outcome_type", tip: true })
+          Plot.groupX({ y: "count" }, { x: "year", fill: "category", tip: true })
         ),
         Plot.ruleY([0])
       ]
@@ -880,7 +886,22 @@
     const figures = [
       { filename: `population_distribution_${suffix}.svg`, plot: buildPaperPopulationPlot(filteredRows) },
       { filename: `grade_distribution_${suffix}.svg`, plot: buildPaperGradePlot(filteredRows) },
-      { filename: `timeline_${suffix}.svg`, plot: buildPaperTimelinePlot(filteredRows) },
+      {
+        filename: `timeline_library_${suffix}.svg`,
+        plot: buildPaperTimelinePlot(filteredRows, {
+          categoryField: "library",
+          title: "Timeline by Library (count)",
+          legendTitle: "Library"
+        })
+      },
+      {
+        filename: `timeline_study_type_${suffix}.svg`,
+        plot: buildPaperTimelinePlot(filteredRows, {
+          categoryField: "study_type",
+          title: "Timeline by Study Type (count)",
+          legendTitle: "Study Type"
+        })
+      },
       { filename: `place_distribution_${suffix}.svg`, plot: buildPaperPlacePlot(filteredRows) },
       { filename: `tools_by_grade_${suffix}.svg`, plot: buildPaperHeatPlot(filteredRows) }
     ];
@@ -946,7 +967,14 @@
     updateKpis(filteredRows);
     mount("#popPlot", buildInteractivePopulationPlot(filteredRows));
     mount("#gradePlot", buildInteractiveGradePlot(filteredRows));
-    mount("#timelinePlot", buildInteractiveTimelinePlot(filteredRows));
+    mount("#timelinePlot", buildInteractiveTimelinePlot(filteredRows, {
+      categoryField: "library",
+      title: "Timeline by Library (count)"
+    }));
+    mount("#timelineStudyPlot", buildInteractiveTimelinePlot(filteredRows, {
+      categoryField: "study_type",
+      title: "Timeline by Study Type (count)"
+    }));
     mount("#placePlot", buildInteractivePlacePlot(filteredRows));
     mount("#heatPlot", buildInteractiveHeatPlot(filteredRows));
     renderTable(filteredRows);

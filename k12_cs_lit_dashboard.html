@@ -13,7 +13,7 @@
 <body>
 <header>
   <h1>K-12 CS Literature Dashboard</h1>
-  <span class="note">Filter by year, grade, population focus, state, tool/language, and study type.</span>
+  <span class="note">Filter by year, grade, population focus, state, tool/language, library, and study type.</span>
 </header>
 
 <div class="wrap">
@@ -35,6 +35,9 @@
 
     <label>Tool / Language (multi-select)</label>
     <select id="toolSel" multiple size="8"></select>
+
+    <label>Library (multi-select)</label>
+    <select id="librarySel" multiple size="6"></select>
 
     <label>Study type (multi-select)</label>
     <select id="typeSel" multiple size="8"></select>
@@ -64,6 +67,7 @@
       <div class="plot" id="placePlot"></div>
       <div class="plot" id="heatPlot"></div>
       <div class="plot" id="timelinePlot"></div>
+      <div class="plot" id="timelineStudyPlot"></div>
     </section>
 
     <section class="card studies">
