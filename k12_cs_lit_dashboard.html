@@ -303,6 +303,79 @@ function getFilteredRows() {
   });
 }
 
+function stateFeaturesWithCounts(stateCounts) {
+  if (!US_TOPO || !stateCounts.size) return [];
+  return topojson.feature(US_TOPO, US_TOPO.objects.states).features.map(feature => {
+    const code = FIPS_TO_USPS[+feature.id] || feature.properties?.name || "Unknown";
+    const count = stateCounts.get(code) || 0;
+    const [lon, lat] = d3.geoCentroid(feature);
+    return { ...feature, code, count, lon, lat };
+  });
+}
+
+function categoricalColors(n) {
+  if (n <= 0) return [];
+  if (n <= d3.schemeTableau10.length) return d3.schemeTableau10.slice(0, n);
+  return d3.quantize(d3.interpolateRainbow, n);
+}
+
+function buildCategoricalLegendSvg({ title, domain, color, width = 1000 }) {
+  const rowHeight = 18;
+  const titleHeight = title ? 20 : 6;
+  const height = titleHeight + domain.length * rowHeight + 4;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  svg.setAttribute("width", String(width));
+  svg.setAttribute("height", String(height));
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+
+  if (title) {
+    const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    t.setAttribute("x", "0");
+    t.setAttribute("y", "14");
+    t.setAttribute("font-size", "13");
+    t.setAttribute("font-weight", "600");
+    t.setAttribute("fill", paperTextColor());
+    t.textContent = title;
+    svg.appendChild(t);
+  }
+
+  domain.forEach((label, i) => {
+    const y = titleHeight + i * rowHeight;
+
+    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    rect.setAttribute("x", "0");
+    rect.setAttribute("y", String(y));
+    rect.setAttribute("width", "12");
+    rect.setAttribute("height", "12");
+    rect.setAttribute("fill", color(label));
+    rect.setAttribute("stroke", "#666");
+    rect.setAttribute("stroke-width", "0.4");
+    svg.appendChild(rect);
+
+    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text.setAttribute("x", "18");
+    text.setAttribute("y", String(y + 10));
+    text.setAttribute("font-size", "12");
+    text.setAttribute("fill", paperTextColor());
+    text.textContent = label;
+    svg.appendChild(text);
+  });
+
+  return svg;
+}
+
+function parseViewBox(svgNode) {
+  const raw = (svgNode.getAttribute("viewBox") || "").trim();
+  const parts = raw.split(/[\s,]+/).map(Number);
+  if (parts.length === 4 && parts.every(Number.isFinite)) {
+    return { x: parts[0], y: parts[1], width: parts[2], height: parts[3] };
+  }
+  const width = parseFloat(svgNode.getAttribute("width")) || svgNode.clientWidth || 800;
+  const height = parseFloat(svgNode.getAttribute("height")) || svgNode.clientHeight || 500;
+  return { x: 0, y: 0, width, height };
+}
+
 function serializeSvg(svgNode) {
   const clone = svgNode.cloneNode(true);
   clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
@@ -316,12 +389,86 @@ function serializeSvg(svgNode) {
 
   const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
   style.textContent = `
-    svg { background: white; }
-    text { fill: ${paperTextColor()}; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    svg { background: white; color: ${paperTextColor()}; }
+    text { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
   `;
   clone.insertBefore(style, clone.firstChild);
 
+  const padLeft = 20;
+  const padRight = 8;
+  const padTop = 4;
+  const padBottom = 4;
+  const vb = parseViewBox(clone);
+  clone.setAttribute(
+    "viewBox",
+    `${vb.x - padLeft} ${vb.y - padTop} ${vb.width + padLeft + padRight} ${vb.height + padTop + padBottom}`
+  );
+
   return new XMLSerializer().serializeToString(clone);
+}
+
+function getSvgSize(svgNode) {
+  const vb = svgNode.viewBox && svgNode.viewBox.baseVal;
+  if (vb && vb.width && vb.height) return { width: vb.width, height: vb.height };
+  const width = parseFloat(svgNode.getAttribute("width")) || svgNode.clientWidth || 800;
+  const height = parseFloat(svgNode.getAttribute("height")) || svgNode.clientHeight || 500;
+  return { width, height };
+}
+
+function serializePlotSvgs(plotNode) {
+  const svgs = plotNode?.tagName?.toLowerCase() === "svg"
+    ? [plotNode]
+    : Array.from(plotNode?.querySelectorAll("svg") || []);
+
+  if (!svgs.length) return null;
+  if (svgs.length === 1) return serializeSvg(svgs[0]);
+
+  const gap = 14;
+  const padLeft = 20;
+  const padRight = 8;
+  const padTop = 4;
+  const padBottom = 4;
+  const sizes = svgs.map(getSvgSize);
+  const width = Math.ceil((d3.max(sizes, d => d.width) || 800) + padLeft + padRight);
+  const height = Math.ceil(d3.sum(sizes, d => d.height) + gap * (svgs.length - 1) + padTop + padBottom);
+
+  const merged = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  merged.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  merged.setAttribute("version", "1.1");
+  merged.setAttribute("width", width);
+  merged.setAttribute("height", height);
+  merged.setAttribute("viewBox", `0 0 ${width} ${height}`);
+
+  const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  bg.setAttribute("x", "0");
+  bg.setAttribute("y", "0");
+  bg.setAttribute("width", String(width));
+  bg.setAttribute("height", String(height));
+  bg.setAttribute("fill", "white");
+  merged.appendChild(bg);
+
+  const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
+  style.textContent = `
+    svg { background: white; color: ${paperTextColor()}; }
+    text { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+  `;
+  merged.appendChild(style);
+
+  let y = padTop;
+  svgs.forEach((svg, i) => {
+    const { width: w, height: h } = sizes[i];
+    const wrapper = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    wrapper.setAttribute("x", String(padLeft));
+    wrapper.setAttribute("y", String(Math.round(y)));
+    wrapper.setAttribute("width", String(w));
+    wrapper.setAttribute("height", String(h));
+    wrapper.setAttribute("viewBox", `0 0 ${w} ${h}`);
+    wrapper.appendChild(svg.cloneNode(true));
+    merged.appendChild(wrapper);
+    y += h + gap;
+  });
+
+  return new XMLSerializer().serializeToString(merged);
 }
 
 function downloadTextFile(filename, text, mimeType) {
@@ -335,9 +482,8 @@ function downloadTextFile(filename, text, mimeType) {
 }
 
 function downloadPlotSVG(plot, filename) {
-  const svg = plot.querySelector("svg") || plot;
-  if (!svg) return;
-  const svgText = serializeSvg(svg);
+  const svgText = serializePlotSvgs(plot);
+  if (!svgText) return;
   downloadTextFile(filename, svgText, "image/svg+xml;charset=utf-8");
 }
 
@@ -453,8 +599,11 @@ function buildPaperGradePlot(F) {
 function buildPaperTimelinePlot(F) {
   const yrs = F.map(d => d.year).filter(Boolean);
   const xDomain = yrs.length ? d3.range(d3.min(yrs), d3.max(yrs) + 1) : [];
+  const outcomeDomain = uniq(F.map(d => norm(d.outcome_type))).filter(Boolean).sort(d3.ascending);
+  const outcomeRange = categoricalColors(outcomeDomain.length);
+  const outcomeColor = d3.scaleOrdinal(outcomeDomain, outcomeRange);
 
-  return Plot.plot({
+  const plot = Plot.plot({
     title: "Timeline by Outcome Type (count)",
     width: 1000,
     height: 420,
@@ -463,7 +612,7 @@ function buildPaperTimelinePlot(F) {
     marginTop: 40,
     marginBottom: 55,
     style: { background: "white", color: paperTextColor(), fontSize: "14px" },
-    color: { legend: true },
+    color: { domain: outcomeDomain, range: outcomeRange, legend: false },
     x: { label: "Year", domain: xDomain, tickFormat: d3.format("d") },
     y: { label: "Count", grid: true, nice: true },
     marks: [
@@ -474,6 +623,18 @@ function buildPaperTimelinePlot(F) {
       Plot.ruleY([0], { stroke: paperStrokeColor() })
     ]
   });
+
+  const wrapper = document.createElement("div");
+  wrapper.appendChild(plot);
+  if (outcomeDomain.length) {
+    wrapper.appendChild(buildCategoricalLegendSvg({
+      title: "Outcome Type",
+      domain: outcomeDomain,
+      color: outcomeColor,
+      width: 1000
+    }));
+  }
+  return wrapper;
 }
 
 function buildPaperPlacePlot(F) {
@@ -487,9 +648,9 @@ function buildPaperPlacePlot(F) {
   const stateCounts = new Map(countsAll.filter(([k]) => k.length === 2));
 
   if (US_TOPO && stateCounts.size) {
-    const states = topojson.feature(US_TOPO, US_TOPO.objects.states).features;
-    const max = d3.max(stateCounts.values()) || 1;
-    const color = d3.scaleSequential([0, max], d3.interpolateBlues);
+    const states = stateFeaturesWithCounts(stateCounts);
+    const max = d3.max(states, d => d.count) || 1;
+    const labeledStates = states.filter(d => d.count > 0);
 
     return Plot.plot({
       title: "U.S. States (paper count)",
@@ -501,15 +662,24 @@ function buildPaperPlacePlot(F) {
       marginLeft: 20,
       style: { background: "white", color: paperTextColor(), fontSize: "14px" },
       projection: "albers-usa",
+      color: { scheme: "blues", legend: true, label: "Paper count", domain: [0, max] },
       marks: [
         Plot.geo(states, {
-          fill: d => color(stateCounts.get(FIPS_TO_USPS[+d.id]) || 0),
+          fill: "count",
           stroke: "#666",
           title: d => {
-            const code = FIPS_TO_USPS[+d.id];
-            const n = stateCounts.get(code) || 0;
-            return `${code ?? d.properties.name}: ${n} paper${n === 1 ? "" : "s"}`;
+            return `${d.code}: ${d.count} paper${d.count === 1 ? "" : "s"}`;
           }
+        }),
+        Plot.text(labeledStates, {
+          x: "lon",
+          y: "lat",
+          text: d => d.count,
+          fontSize: 10,
+          fontWeight: 600,
+          fill: d => d.count >= max * 0.45 ? "white" : "#111",
+          stroke: "white",
+          strokeWidth: 1.5
         }),
         Plot.geo(topojson.mesh(US_TOPO, US_TOPO.objects.states, (a, b) => a !== b), {
           stroke: "#999"
@@ -590,14 +760,14 @@ function buildPaperHeatPlot(F) {
     title: "Tools × Grade (count of papers)",
     width: 1100,
     height: 700,
-    marginLeft: 260,
+    marginLeft: 300,
     marginRight: 40,
     marginTop: 40,
     marginBottom: 60,
     style: { background: "white", color: paperTextColor(), fontSize: "14px" },
     color: {
       type: "log",
-      scheme: "blues",
+      scheme: "rdylbu",
       legend: true
     },
     x: {
@@ -612,14 +782,14 @@ function buildPaperHeatPlot(F) {
         fill: "count",
         inset: 0.5
       }),
-      Plot.text(heatCounts, {
-        x: "grade",
-        y: "tool_language",
-        text: d => d.count,
-        fill: d => d.count >= 3 ? "#222" : "#111"
-      })
-    ]
-  });
+        Plot.text(heatCounts, {
+          x: "grade",
+          y: "tool_language",
+          text: d => d.count,
+          fill: d => 2 <= d.count && d.count <= 5 ? "#222" : "#d6d6d6"
+        })
+      ]
+    });
 }
 
 function exportPaperFigures() {
@@ -814,13 +984,12 @@ function render(){
       const stateCounts = new Map(countsAll.filter(([k]) => k.length === 2));
 
       if (US_TOPO && stateCounts.size) {
-        const states = topojson.feature(US_TOPO, US_TOPO.objects.states).features;
-        const max = d3.max(stateCounts.values()) || 1;
-        const color = d3.scaleSequential([0, max], d3.interpolateBlues);
+        const states = stateFeaturesWithCounts(stateCounts);
+        const max = d3.max(states, d => d.count) || 1;
 
         const placeNode = document.querySelector("#placePlot");
         const width = Math.max(320, placeNode.clientWidth - 16);
-        const height = 260;
+        const height = 290;
 
         const usPlot = Plot.plot({
           title: "U.S. states (paper count)",
@@ -831,15 +1000,14 @@ function render(){
           marginBottom: 0,
           marginLeft: 0,
           projection: "albers-usa",
+          color: { scheme: "blues", legend: true, label: "Paper count", domain: [0, max] },
           marks: [
             Plot.geo(states, {
-              fill: d => color(stateCounts.get(FIPS_TO_USPS[+d.id]) || 0),
+              fill: "count",
               stroke: "#2a2f3a",
               tip: true,
               title: d => {
-                const code = FIPS_TO_USPS[+d.id];
-                const n = stateCounts.get(code) || 0;
-                return `${code ?? d.properties.name}: ${n} paper${n === 1 ? "" : "s"}`;
+                return `${d.code}: ${d.count} paper${d.count === 1 ? "" : "s"}`;
               }
             }),
             Plot.geo(topojson.mesh(US_TOPO, US_TOPO.objects.states, (a, b) => a !== b), {
