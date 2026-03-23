@@ -17,7 +17,7 @@ const DATA = [
   {
     paper_id:"MagerkoEtAl_2015", year:2015, title:"EarSketch: a STEAM approach to broadening participation in AP CSP",
     authors:"Magerko et al.", country:"USA", state:"GA",
-    grades:[9, 10, 11, 12], population_focus:"Mixed",
+    grades:[9, 10, 11, 12], population_focus:"Unspecified",
     study_type:"Case Study", n_students:null, n_teachers:null, n_sites:4,
     course_or_context:"AP", tool_language:"EarSketch; Python; JavaScript",
     outcome_type:"Learning", result_direction:"mixed/nuanced",
@@ -30,7 +30,7 @@ const DATA = [
   {
     paper_id:"SaxEtAl_2020", year:2020, title:"Does AP CS Principles Broaden Participation in Computing? An Analysis of APCSA and APCSP Participants",
     authors:"Sax et al.", country:"USA", state:"National",
-    grades:[9, 10, 11, 12], population_focus:"Mixed",
+    grades:[9, 10, 11, 12], population_focus:"Unspecified",
     study_type:"Survey", n_students:8844, n_teachers:null, n_sites:null,
     course_or_context:"AP", tool_language:"",
     outcome_type:"Access", result_direction:"",
@@ -56,7 +56,7 @@ const DATA = [
   {
     paper_id:"FranklinEtAl_2013", year:2013, title:"Assessment of Computer Science Learning in a Scratch-Based Outreach Program.",
     authors:"Franklin et al.", country:"USA", state:"CA",
-    grades:[6, 7, 8], population_focus:"Mixed",
+    grades:[6, 7, 8], population_focus:"Unspecified",
     study_type:"Case Study", n_students:22, n_teachers:null, n_sites:null,
     course_or_context:"Summer Program", tool_language:"Scratch",
     outcome_type:"Learning", result_direction:"",
@@ -82,7 +82,7 @@ const DATA = [
   {
     paper_id:"GroverBasuSchank_2018", year:2018, title:"What We Can Learn About Student Learning From Open-Ended Programming Projects in Middle School Computer Science.",
     authors:"Grover et al.", country:"USA", state:"",
-    grades:[6, 7, 8], population_focus:"Mixed",
+    grades:[6, 7, 8], population_focus:"Unspecified",
     study_type:"Case Study", n_students:79, n_teachers:null, n_sites:null,
     course_or_context:"Classroom", tool_language:"Scratch",
     outcome_type:"Learning", result_direction:"",
@@ -95,7 +95,7 @@ const DATA = [
   {
     paper_id:"GoldsmithStanton_2021", year:2021, title:"Equity for Massachusetts Students’ CS Education: How Well Has the State Been Doing?",
     authors:"Goldsmith and Stanton", country:"USA", state:"MA",
-    grades:[9, 10, 11, 12], population_focus:"Mixed",
+    grades:[9, 10, 11, 12], population_focus:"Unspecified",
     study_type:"Review", n_students:null, n_teachers:null, n_sites:null,
     course_or_context:"AP", tool_language:"",
     outcome_type:"Access", result_direction:"",
@@ -108,7 +108,7 @@ const DATA = [
   {
     paper_id:"LeeEtAl_2021", year:2021, title:"Developing Middle School Students’ AI Literacy.",
     authors:"Lee et al.", country:"USA", state:"MA",
-    grades:[6, 7, 8], population_focus:"Mixed",
+    grades:[6, 7, 8], population_focus:"Unspecified",
     study_type:"Case Study", n_students:31, n_teachers:null, n_sites:null,
     course_or_context:"Summer Program", tool_language:"Google Teachable Machine; Scratch",
     outcome_type:"Learning", result_direction:"",
@@ -147,7 +147,7 @@ const DATA = [
   {
     paper_id:"Basu_2019", year:2019, title:"Using Rubrics Integrating Design and Coding to Assess Middle School Students’ Open-ended Block-based Programming Projects.",
     authors:"Basu", country:"USA", state:"CA",
-    grades:[6, 7, 8], population_focus:"Low-Income; Mixed",
+    grades:[6, 7, 8], population_focus:"Low-Income; Unspecified",
     study_type:"Case Study", n_students:160, n_teachers:null, n_sites:null,
     course_or_context:"Classroom", tool_language:"Scratch; MIT APP Inventor",
     outcome_type:"Learning", result_direction:"",
@@ -159,7 +159,7 @@ const DATA = [
   {
     paper_id:"Judd_2020", year:2020, title:"Activities for Building Understanding: How AI4ALL Teaches AI",
     authors:"Judd", country:"USA", state:"",
-    grades:[9, 10, 11, 12], population_focus:"Mixed",
+    grades:[9, 10, 11, 12], population_focus:"Unspecified",
     study_type:"Case Study", n_students:null, n_teachers:null, n_sites:null,
     course_or_context:"Classroom", tool_language:"",
     outcome_type:"Learning", result_direction:"descriptive/no outcomes",
@@ -171,7 +171,7 @@ const DATA = [
   {
     paper_id:"BanilowerCraven_2020", year:2020, title:"Factors Associated With High-Quality CS Instruction: Data from a Nationally Representative Sample of High School Teachers",
     authors:"Banilower and Craven", country:"USA", state:"National",
-    grades:[9, 10, 11, 12], population_focus:"Mixed; Rural",
+    grades:[9, 10, 11, 12], population_focus:"Unspecified; Rural",
     study_type:"Survey", n_students:null, n_teachers:300, n_sites:null,
     course_or_context:"", tool_language:"",
     outcome_type:"Learning", result_direction:"descriptive/associational",
@@ -183,7 +183,7 @@ const DATA = [
   {
     paper_id:"RutsteinEtAl_2019", year:2019, title:"Developing Implementation Measures for K–12 CS Curriculum",
     authors:"Rutstein et al.", country:"USA", state:"CA",
-    grades:[9, 10, 11, 12], population_focus:"Mixed",
+    grades:[9, 10, 11, 12], population_focus:"Unspecified",
     study_type:"Survey", n_students:null, n_teachers:53, n_sites:null,
     course_or_context:"Teacher Development", tool_language:"",
     outcome_type:"Learning", result_direction:"mixed/nuanced",
@@ -195,10 +195,10 @@ const DATA = [
   {
     paper_id:"Adams_2010", year:2010, title:"Scratching Middle Schoolers’ Creative Itch",
     authors:"Adams", country:"USA", state:"MI",
-    grades:[6, 7, 8], population_focus:"Mixed; Disability",
+    grades:[6, 7, 8], population_focus:"Unspecified; Disability",
     study_type:"Case Study", n_students:null, n_teachers:null, n_sites:2,
     course_or_context:"Summer Program", tool_language:"Scratch; Alice",
-    outcome_type:"Engagement", result_direction:"Mixed/nuanced",
+    outcome_type:"Engagement", result_direction:"Unspecified/nuanced",
     key_findings:"Scratch lowered entry compared to Alice; stories/game projects showed positive engagement; accessibility via Scratch allowed deep involvement for some blind students.",
     limitations_short:"Prior experience confound; IDE limitations; no comparison/control; assessment mostly descriptive.",
     url_or_doi:"https://dl.acm.org/doi/10.1145/1734263.1734385",
@@ -207,7 +207,7 @@ const DATA = [
   {
     paper_id:"WeintropWilensky_2017", year:2017, title:"Comparing Block-Based and Text-Based Programming in High School Computer Science Classrooms",
     authors:"Weintrop & Wilensky", country:"USA", state:"IL",
-    grades:[9, 10, 11, 12], population_focus:"Mixed",
+    grades:[9, 10, 11, 12], population_focus:"Unspecified",
     study_type:"Case Study", n_students:60, n_teachers:1, n_sites:1,
     course_or_context:"Classroom", tool_language:"Scratch; Pencil",
     outcome_type:"Learning", result_direction:"mixed/nuanced",
@@ -219,7 +219,7 @@ const DATA = [
   {
     paper_id:"KafaiEtAl_2014", year:2014, title:"A Crafts-Oriented Approach to Computing in High School: Introducing Computational Concepts, Practices, and Perspectives with Electronic Textiles",
     authors:"Kafai et al.", country:"USA", state:"",
-    grades:[11, 12], population_focus:"Mixed",
+    grades:[11, 12], population_focus:"Unspecified",
     study_type:"Case Study", n_students:15, n_teachers:1, n_sites:1,
     course_or_context:"Classroom", tool_language:"Arduino",
     outcome_type:"Engagement", result_direction:"positive/mixed",
@@ -231,7 +231,7 @@ const DATA = [
   {
     paper_id:"Ryoo_2019", year:2019, title:"Pedagogy that Supports Computer Science for All",
     authors:"Ryoo", country:"USA", state:"CA",
-    grades:[9, 10, 11, 12], population_focus:"Mixed",
+    grades:[9, 10, 11, 12], population_focus:"Unspecified",
     study_type:"Case Study", n_students:70, n_teachers:3, n_sites:3,
     course_or_context:"Classroom", tool_language:"Circuits; E-textiles;",
     outcome_type:"Engagement", result_direction:"positive",
@@ -256,7 +256,7 @@ const DATA = [
   {
     paper_id:"VogalEtAl_2017", year:2017, title:"Visions of Computer Science Education: Unpacking Arguments for and Projected Impacts of CS4All Initiatives",
     authors:"Vogal et al.", country:"USA", state:"NY",
-    grades:[], population_focus:"Mixed",
+    grades:[], population_focus:"Unspecified",
     study_type:"Survey", n_students:null, n_teachers:24, n_sites:null,
     course_or_context:"Teacher Development", tool_language:"",
     outcome_type:"Access", result_direction:"",
@@ -269,7 +269,7 @@ const DATA = [
   {
     paper_id:"FreemanEtAl_2014", year:2014, title:"Engaging underrepresented groups in high school introductory computing through computational remixing with EarSketch",
     authors:"Freeman et al.", country:"USA", state:"GA",
-    grades:[9], population_focus:"Girls; Mixed",
+    grades:[9], population_focus:"Girls; Unspecified",
     study_type:"Case Study", n_students:69, n_teachers:null, n_sites:null,
     course_or_context:"Classroom", tool_language:"Python; EarSketch",
     outcome_type:"Engagement", result_direction:"",
@@ -282,7 +282,7 @@ const DATA = [
   {
     paper_id:"WangEtAl_2016", year:2016, title:"Landscape of K-12 Computer Science Education in the U.S.: Perceptions, Access, and Barriers",
     authors:"Wang et al.", country:"USA", state:"National",
-    grades:[], population_focus:"Mixed; Low-Income",
+    grades:[], population_focus:"Unspecified; Low-Income",
     study_type:"Survey", n_students:1673, n_teachers:1013, n_sites:null,
     course_or_context:"Classroom", tool_language:"",
     outcome_type:"Access", result_direction:"",
@@ -296,7 +296,7 @@ const DATA = [
     paper_id:"EreteEtAl_2024", year:2024, title:"Applying a Transformative Justice Approach to Encourage the Participation of Black and Latina Girls in Computing",
     authors:"Erete et al.", country:"USA", state:"IL",
     grades:[6, 7, 8, 9, 10, 11, 12], population_focus:"Black; Latinx; Girls",
-    study_type:"Perspective", n_students:null, n_teachers:null, n_sites:null,
+    study_type:"Review", n_students:null, n_teachers:null, n_sites:null,
     course_or_context:"Out-of-school Program", tool_language:"",
     outcome_type:"Access", result_direction:"descriptive",
     key_findings:"Justice-oriented principles: acknowledge histories of harm; counter stereotypes; build sustainable community capacity.",
@@ -307,7 +307,7 @@ const DATA = [
   {
     paper_id:"GretterEtAl_2019", year:2019, title:"Equitable Learning Environments in K-12 Computing: Teachers’ Views on Barriers to Diversity",
     authors:"Gretter et al.", country:"USA", state:"",
-    grades:[9, 10, 11, 12], population_focus:"Mixed; Low-Income",
+    grades:[9, 10, 11, 12], population_focus:"Unspecified; Low-Income",
     study_type:"Survey", n_students:null, n_teachers:23, n_sites:null,
     course_or_context:"Classroom", tool_language:"",
     outcome_type:"Access", result_direction:"descriptive",
@@ -361,7 +361,7 @@ const DATA = [
   {
     paper_id:"MadkinsEtAl_2019", year:2019, title:"Culturally Relevant Computer Science Pedagogy: From Theory to Practice",
     authors:"Madkins et al.", country:"USA", state:"CA",
-    grades:[9, 10, 11, 12], population_focus:"Girls; Mixed",
+    grades:[9, 10, 11, 12], population_focus:"Girls; Unspecified",
     study_type:"Case Study", n_students:1913, n_teachers:15, n_sites:null,
     course_or_context:"Summer Program; Classroom", tool_language:"Scratch",
     outcome_type:"Engagement", result_direction:"",
@@ -469,7 +469,7 @@ const DATA = [
   {
     paper_id:"KhalafallaEtAl_2025", year:2025, title:"Empowering Underrepresented High School Students in STEM Through Hands-On Engineering Technology Summer Camps",
     authors:"Khalafalla et al.", country:"USA", state:"FL",
-    grades:[9, 10, 11, 12], population_focus:"Mixed",
+    grades:[9, 10, 11, 12], population_focus:"Unspecified",
     study_type:"Case Study", n_students:31, n_teachers:null, n_sites:null,
     course_or_context:"Summer Program", tool_language:"Python",
     outcome_type:"Access", result_direction:"",
@@ -505,7 +505,7 @@ const DATA = [
   {
     paper_id:"WalkerEtAl_2023", year:2023, title:"Coding Like a Data Miner: A Sandbox Approach to Computing-Based Data Science for High School Student Learning",
     authors:"Walker et al.", country:"USA", state:"TX",
-    grades:[9, 10, 11, 12], population_focus:"Mixed",
+    grades:[9, 10, 11, 12], population_focus:"Unspecified",
     study_type:"Case Study", n_students:14, n_teachers:null, n_sites:null,
     course_or_context:"Classroom", tool_language:"",
     outcome_type:"Learning", result_direction:"",
@@ -517,7 +517,7 @@ const DATA = [
   {
     paper_id:"WilleEtAl_2016", year:2016, title:"Computer Science Principles (CSP) and students with learning differences: Expanding opportunities for a hidden underrepresented group",
     authors:"Wille et al.", country:"USA", state:"IL",
-    grades:[9, 10, 11, 12], population_focus:"Mixed; Disability",
+    grades:[9, 10, 11, 12], population_focus:"Unspecified; Disability",
     study_type:"Case Study", n_students:87, n_teachers:null, n_sites:null,
     course_or_context:"", tool_language:"",
     outcome_type:"Access", result_direction:"",
@@ -529,7 +529,7 @@ const DATA = [
   {
     paper_id:"Raigoza_2018", year:2018, title:"An Experience Report on Running a Pre-College Computer Science Summer Program",
     authors:"Raigoza", country:"USA", state:"CA",
-    grades:[9, 10, 11, 12], population_focus:"Mixed",
+    grades:[9, 10, 11, 12], population_focus:"Unspecified",
     study_type:"Case Study", n_students:21, n_teachers:null, n_sites:null,
     course_or_context:"Summer program", tool_language:"Python; JavaScript",
     outcome_type:"Learning", result_direction:"",
@@ -628,7 +628,7 @@ const DATA = [
   {
     paper_id:"RichEtAl_2019", year:2019, title:"The Landscape of Computing Education in Utah",
     authors:"Rich et al.", country:"USA", state:"UT",
-    grades:[], population_focus:"Girls; Mixed",
+    grades:[], population_focus:"Girls; Unspecified",
     study_type:"Review", n_students:null, n_teachers:null, n_sites:null,
     course_or_context:"AP", tool_language:"",
     outcome_type:"Access", result_direction:"descriptive",
@@ -688,8 +688,8 @@ const DATA = [
   { // No useful information
     paper_id:"BirneyMcNamara_2021", year:2019, title:"The Curriculum and Community Enterprise for Restoration Science:Engaging Marginalized Students in STEM Fields through DataAcquisition and Computational Thinking",
     authors:"Birney and McNamara", country:"USA", state:"NY",
-    grades:[], population_focus:"Mixed",
-    study_type:"", n_students:null, n_teachers:null, n_sites:null,
+    grades:[], population_focus:"Unspecified",
+    study_type:"Review", n_students:null, n_teachers:null, n_sites:null,
     course_or_context:"Classroom", tool_language:"",
     outcome_type:"Engagement", result_direction:"",
     key_findings:"",
@@ -700,7 +700,7 @@ const DATA = [
   {
     paper_id:"FleschEtAl_2021", year:2021, title:"Choreographing Increased Understanding and Positive Attitudestowards Coding By Integrating Dance",
     authors:"Flesch et al.", country:"USA", state:"OR",
-    grades:[], population_focus:"Mixed",
+    grades:[], population_focus:"Unspecified",
     study_type:"Case Study", n_students:null, n_teachers:null, n_sites:null,
     course_or_context:"Summer Program", tool_language:"Blockly",
     outcome_type:"Learning", result_direction:"",
@@ -725,7 +725,7 @@ const DATA = [
     paper_id:"JohnsonEtAl_2022", year:2022, title:"Building Strength in Chicago: Setting the Local and National Computer Science Agendas",
     authors:"Johnson et al.", country:"USA", state:"IL",
     grades:[9, 10, 11, 12], population_focus:"Girls; Disability",
-    study_type:"Perspective", n_students:null, n_teachers:null, n_sites:null,
+    study_type:"Review", n_students:null, n_teachers:null, n_sites:null,
     course_or_context:"Classroom", tool_language:"",
     outcome_type:"Access", result_direction:"",
     key_findings:"",
