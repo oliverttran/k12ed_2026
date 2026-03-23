@@ -98,6 +98,7 @@
     <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn" id="clearBtn">Clear filters</button>
       <button class="btn" id="copyBtn" title="Copy current filters as URL hash">Share filters</button>
+      <button class="btn" id="exportPaperBtn">Export paper figures</button>
     </div>
     <div class="note">Tip: ⌘/Ctrl-click to select multiple.</div>
   </aside>
@@ -280,6 +281,365 @@ function makeHash(f){
   });
   return "#"+qp.toString();
 }
+
+function paperTextColor() { return "#222"; }
+function paperGridColor() { return "#d9d9d9"; }
+function paperStrokeColor() { return "#999"; }
+
+function getFilteredRows() {
+  const f = currentFilter();
+
+  return rows.filter(d => {
+    const grades = getGrades(d);
+    return (
+      (!d.year || (d.year >= f.yearMin && d.year <= f.yearMax)) &&
+      (!f.grades.length || grades.some(g => f.grades.includes(g))) &&
+      (!f.pops.length || f.pops.includes(norm(d.population_focus))) &&
+      (!f.tools.length || f.tools.includes(norm(d.tool_language))) &&
+      (!f.tags.length || f.tags.includes(norm(d.tags))) &&
+      (!f.types.length || f.types.includes(norm(d.study_type))) &&
+      (!f.states.length || f.states.includes(norm(d.state)))
+    );
+  });
+}
+
+function serializeSvg(svgNode) {
+  const clone = svgNode.cloneNode(true);
+  clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  clone.setAttribute("version", "1.1");
+
+  if (!clone.getAttribute("viewBox")) {
+    const w = svgNode.getAttribute("width") || svgNode.clientWidth || 800;
+    const h = svgNode.getAttribute("height") || svgNode.clientHeight || 500;
+    clone.setAttribute("viewBox", `0 0 ${w} ${h}`);
+  }
+
+  const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
+  style.textContent = `
+    svg { background: white; }
+    text { fill: ${paperTextColor()}; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+  `;
+  clone.insertBefore(style, clone.firstChild);
+
+  return new XMLSerializer().serializeToString(clone);
+}
+
+function downloadTextFile(filename, text, mimeType) {
+  const blob = new Blob([text], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadPlotSVG(plot, filename) {
+  const svg = plot.querySelector("svg") || plot;
+  if (!svg) return;
+  const svgText = serializeSvg(svg);
+  downloadTextFile(filename, svgText, "image/svg+xml;charset=utf-8");
+}
+
+function slugify(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function buildPaperPopulationPlot(F) {
+  const paperPopRows = uniq(F.map(d => d.paper_id)).flatMap(pid => {
+    const paperRows = F.filter(d => d.paper_id === pid);
+    const paper = paperRows[0];
+    const popGroups = uniq(paperRows.map(d => norm(d.population_focus))).filter(Boolean);
+
+    return popGroups.map(pop => ({
+      paper_id: pid,
+      population_focus: pop,
+      n_students: paper.n_students
+    }));
+  });
+
+  const totalPapers = uniq(F.map(d => d.paper_id)).length;
+
+  const popCounts = d3.rollups(
+    paperPopRows,
+    v => ({
+      count: new Set(v.map(d => d.paper_id)).size,
+      median_n: median(v.map(d => d.n_students))
+    }),
+    d => d.population_focus
+  )
+  .map(([population_focus, stats]) => ({
+    population_focus,
+    count: stats.count,
+    median_n: stats.median_n,
+    prop: totalPapers ? stats.count / totalPapers : 0
+  }))
+  .sort((a, b) => d3.descending(a.count, b.count) || d3.ascending(a.population_focus, b.population_focus));
+
+  return Plot.plot({
+    title: "Distribution by Population Group",
+    width: 900,
+    height: Math.max(340, popCounts.length * 30),
+    marginLeft: 180,
+    marginRight: 30,
+    marginTop: 40,
+    marginBottom: 50,
+    style: { background: "white", color: paperTextColor(), fontSize: "14px" },
+    x: { label: "% of filtered papers", percent: true, grid: true },
+    y: { label: null, domain: popCounts.map(d => d.population_focus) },
+    marks: [
+      Plot.barX(popCounts, {
+        x: "prop",
+        y: "population_focus",
+        fill: "#4c78a8",
+        title: d => `${d.population_focus}\n${(d.prop * 100).toFixed(1)}% (${d.count} paper${d.count === 1 ? "" : "s"})\nMedian sample size: ${d.median_n != null ? Math.round(d.median_n) : "N/A"}`
+      }),
+      Plot.ruleX([0], { stroke: paperStrokeColor() })
+    ]
+  });
+}
+
+function buildPaperGradePlot(F) {
+  const paperGradeRows = uniq(F.map(d => d.paper_id)).flatMap(pid => {
+    const paper = F.find(d => d.paper_id === pid);
+    return getGrades(paper).map(g => ({
+      paper_id: pid,
+      grade: g,
+      grade_label: gradeLabel(g)
+    }));
+  });
+
+  const totalPapers = uniq(F.map(d => d.paper_id)).length;
+
+  const counts = d3.rollups(
+    paperGradeRows,
+    v => new Set(v.map(d => d.paper_id)).size,
+    d => d.grade
+  )
+  .map(([grade, count]) => ({
+    grade,
+    grade_label: gradeLabel(grade),
+    count,
+    prop: totalPapers ? count / totalPapers : 0
+  }))
+  .sort((a, b) => a.grade - b.grade);
+
+  return Plot.plot({
+    title: "Distribution by Grade",
+    width: 900,
+    height: 420,
+    marginLeft: 70,
+    marginRight: 30,
+    marginTop: 40,
+    marginBottom: 55,
+    style: { background: "white", color: paperTextColor(), fontSize: "14px" },
+    x: { label: "% of filtered papers", percent: true, grid: true },
+    y: { label: null, domain: counts.map(d => d.grade_label) },
+    marks: [
+      Plot.barX(counts, {
+        x: "prop",
+        y: "grade_label",
+        fill: "#4c78a8",
+        title: d => `${d.grade_label}\n${(d.prop * 100).toFixed(1)}% of filtered papers (${d.count} paper${d.count === 1 ? "" : "s"})`
+      }),
+      Plot.ruleX([0], { stroke: paperStrokeColor() })
+    ]
+  });
+}
+
+function buildPaperTimelinePlot(F) {
+  const yrs = F.map(d => d.year).filter(Boolean);
+  const xDomain = yrs.length ? d3.range(d3.min(yrs), d3.max(yrs) + 1) : [];
+
+  return Plot.plot({
+    title: "Timeline by Outcome Type (count)",
+    width: 1000,
+    height: 420,
+    marginLeft: 60,
+    marginRight: 30,
+    marginTop: 40,
+    marginBottom: 55,
+    style: { background: "white", color: paperTextColor(), fontSize: "14px" },
+    color: { legend: true },
+    x: { label: "Year", domain: xDomain, tickFormat: d3.format("d") },
+    y: { label: "Count", grid: true, nice: true },
+    marks: [
+      Plot.barY(
+        F,
+        Plot.groupX({ y: "count" }, { x: "year", fill: "outcome_type" })
+      ),
+      Plot.ruleY([0], { stroke: paperStrokeColor() })
+    ]
+  });
+}
+
+function buildPaperPlacePlot(F) {
+  const placeKey = d => (norm(d.state) || norm(d.country) || null);
+  const countsAll = d3.rollups(
+    F,
+    v => new Set(v.map(d => d.paper_id)).size,
+    placeKey
+  ).filter(([k]) => k);
+
+  const stateCounts = new Map(countsAll.filter(([k]) => k.length === 2));
+
+  if (US_TOPO && stateCounts.size) {
+    const states = topojson.feature(US_TOPO, US_TOPO.objects.states).features;
+    const max = d3.max(stateCounts.values()) || 1;
+    const color = d3.scaleSequential([0, max], d3.interpolateBlues);
+
+    return Plot.plot({
+      title: "U.S. States (paper count)",
+      width: 1000,
+      height: 600,
+      marginTop: 35,
+      marginRight: 20,
+      marginBottom: 20,
+      marginLeft: 20,
+      style: { background: "white", color: paperTextColor(), fontSize: "14px" },
+      projection: "albers-usa",
+      marks: [
+        Plot.geo(states, {
+          fill: d => color(stateCounts.get(FIPS_TO_USPS[+d.id]) || 0),
+          stroke: "#666",
+          title: d => {
+            const code = FIPS_TO_USPS[+d.id];
+            const n = stateCounts.get(code) || 0;
+            return `${code ?? d.properties.name}: ${n} paper${n === 1 ? "" : "s"}`;
+          }
+        }),
+        Plot.geo(topojson.mesh(US_TOPO, US_TOPO.objects.states, (a, b) => a !== b), {
+          stroke: "#999"
+        })
+      ]
+    });
+  }
+
+  const top = countsAll.sort((a, b) => d3.descending(a[1], b[1])).slice(0, 12);
+
+  return Plot.plot({
+    title: "Top Locations (count)",
+    width: 1000,
+    height: 420,
+    marginLeft: 180,
+    marginRight: 40,
+    marginTop: 40,
+    marginBottom: 55,
+    style: { background: "white", color: paperTextColor(), fontSize: "14px" },
+    x: { label: "Papers", grid: true, nice: true },
+    y: { tickSize: 0 },
+    marks: [
+      Plot.barX(top, {
+        x: d => d[1],
+        y: d => d[0],
+        fill: "#4c78a8",
+        title: d => `${d[0]}: ${d[1]} paper${d[1] === 1 ? "" : "s"}`
+      }),
+      Plot.text(top, {
+        x: d => d[1],
+        y: d => d[0],
+        text: d => d[1],
+        dx: 8,
+        fill: "#222"
+      })
+    ]
+  });
+}
+
+function buildPaperHeatPlot(F) {
+  const heatRows = uniq(F.map(d => d.paper_id)).flatMap(pid => {
+    const paperRows = F.filter(d => d.paper_id === pid);
+    const paper = paperRows[0];
+    const paperTools = uniq(paperRows.map(d => norm(d.tool_language))).filter(Boolean);
+    const grades = getGrades(paper);
+
+    if (!paperTools.length || !grades.length) return [];
+
+    return grades.flatMap(g =>
+      paperTools.map(t => ({
+        paper_id: pid,
+        grade: gradeLabel(g),
+        tool_language: t
+      }))
+    );
+  });
+
+  const heatCounts = d3.rollups(
+    heatRows,
+    v => v.length,
+    d => d.grade,
+    d => d.tool_language
+  )
+  .flatMap(([grade, tools]) =>
+    tools.map(([tool_language, count]) => ({
+      grade,
+      tool_language,
+      count
+    }))
+  )
+  .sort((a, b) => {
+    const ga = a.grade === "K" ? 0 : +a.grade;
+    const gb = b.grade === "K" ? 0 : +b.grade;
+    return ga - gb || d3.ascending(a.tool_language, b.tool_language);
+  });
+
+  return Plot.plot({
+    title: "Tools × Grade (count of papers)",
+    width: 1100,
+    height: 700,
+    marginLeft: 260,
+    marginRight: 40,
+    marginTop: 40,
+    marginBottom: 60,
+    style: { background: "white", color: paperTextColor(), fontSize: "14px" },
+    color: {
+      type: "log",
+      scheme: "blues",
+      legend: true
+    },
+    x: {
+      label: "Grade",
+      domain: ["K", ...d3.range(1, 13).map(String)]
+    },
+    y: { label: null },
+    marks: [
+      Plot.rect(heatCounts, {
+        x: "grade",
+        y: "tool_language",
+        fill: "count",
+        inset: 0.5
+      }),
+      Plot.text(heatCounts, {
+        x: "grade",
+        y: "tool_language",
+        text: d => d.count,
+        fill: d => d.count >= 3 ? "#222" : "#111"
+      })
+    ]
+  });
+}
+
+function exportPaperFigures() {
+  const F = getFilteredRows();
+  const suffix = slugify(location.hash.replace(/^#/, "") || "current_filters");
+
+  const figures = [
+    { filename: `population_distribution_${suffix}.svg`, plot: buildPaperPopulationPlot(F) },
+    { filename: `grade_distribution_${suffix}.svg`, plot: buildPaperGradePlot(F) },
+    { filename: `timeline_${suffix}.svg`, plot: buildPaperTimelinePlot(F) },
+    { filename: `place_distribution_${suffix}.svg`, plot: buildPaperPlacePlot(F) },
+    { filename: `tools_by_grade_${suffix}.svg`, plot: buildPaperHeatPlot(F) }
+  ];
+
+  for (const fig of figures) {
+    downloadPlotSVG(fig.plot, fig.filename);
+    fig.plot.remove();
+  }
+}
+
 // ---------- Render ----------
 function render(){
   const f = currentFilter();
@@ -643,6 +1003,10 @@ document.getElementById("clearBtn").addEventListener("click", ()=>{
 
 document.getElementById("copyBtn").addEventListener("click", ()=>{
   navigator.clipboard.writeText(location.href).then(()=>alert("Shareable URL copied!"));
+});
+
+document.getElementById("exportPaperBtn").addEventListener("click", () => {
+  exportPaperFigures();
 });
 
 applyHash(location.hash);
