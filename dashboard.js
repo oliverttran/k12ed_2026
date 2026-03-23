@@ -332,6 +332,21 @@
     return { countsAll, stateCounts };
   }
 
+  function buildTimelineRows(filteredRows) {
+    const deduped = new Map();
+    for (const row of filteredRows) {
+      const year = row.year;
+      const outcome_type = norm(row.outcome_type);
+      if (!year || !outcome_type) continue;
+
+      const key = `${row.paper_id}||${year}||${outcome_type}`;
+      if (!deduped.has(key)) {
+        deduped.set(key, { paper_id: row.paper_id, year, outcome_type });
+      }
+    }
+    return Array.from(deduped.values());
+  }
+
   function stateFeaturesWithCounts(stateCounts) {
     if (!US_TOPO || !stateCounts.size) return [];
     return topojson.feature(US_TOPO, US_TOPO.objects.states).features.map(feature => {
@@ -607,9 +622,10 @@
   }
 
   function buildPaperTimelinePlot(filteredRows) {
-    const yearValues = filteredRows.map(d => d.year).filter(Boolean);
+    const timelineRows = buildTimelineRows(filteredRows);
+    const yearValues = timelineRows.map(d => d.year).filter(Boolean);
     const xDomain = yearValues.length ? d3.range(d3.min(yearValues), d3.max(yearValues) + 1) : [];
-    const outcomeDomain = uniq(filteredRows.map(d => norm(d.outcome_type))).filter(Boolean).sort(d3.ascending);
+    const outcomeDomain = uniq(timelineRows.map(d => norm(d.outcome_type))).filter(Boolean).sort(d3.ascending);
     const outcomeRange = categoricalColors(outcomeDomain.length);
     const outcomeColor = d3.scaleOrdinal(outcomeDomain, outcomeRange);
 
@@ -627,7 +643,7 @@
       y: { label: "Count", grid: true, nice: true },
       marks: [
         Plot.barY(
-          filteredRows,
+          timelineRows,
           Plot.groupX({ y: "count" }, { x: "year", fill: "outcome_type" })
         ),
         Plot.ruleY([0], { stroke: paperStrokeColor() })
@@ -648,7 +664,8 @@
   }
 
   function buildInteractiveTimelinePlot(filteredRows) {
-    const yearValues = filteredRows.map(d => d.year).filter(Boolean);
+    const timelineRows = buildTimelineRows(filteredRows);
+    const yearValues = timelineRows.map(d => d.year).filter(Boolean);
     const xDomain = yearValues.length ? d3.range(d3.min(yearValues), d3.max(yearValues) + 1) : [];
     return Plot.plot({
       title: "Timeline by Outcome Type (count)",
@@ -659,7 +676,7 @@
       y: { label: "count ↑", grid: true, nice: true },
       marks: [
         Plot.barY(
-          filteredRows,
+          timelineRows,
           Plot.groupX({ y: "count" }, { x: "year", fill: "outcome_type", tip: true })
         ),
         Plot.ruleY([0])
