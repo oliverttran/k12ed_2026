@@ -3,7 +3,7 @@
 
   const US_TOPO_URL = "https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json";
   const GRADE_DOMAIN = ["K", ...d3.range(1, 13).map(String)];
-  const FILTER_SELECT_IDS = ["gradeSel", "popSel", "toolSel", "librarySel", "tagSel", "typeSel", "stateSel"];
+  const FILTER_SELECT_IDS = ["gradeSel", "popSel", "contextSel", "toolSel", "languageSel", "librarySel", "tagSel", "typeSel", "outcomeSel", "stateSel"];
   const FILTER_INPUT_IDS = ["yearMin", "yearMax", ...FILTER_SELECT_IDS];
 
   // FIPS -> USPS (incl. DC)
@@ -20,6 +20,13 @@
   const uniq = arr => Array.from(new Set(arr));
   const norm = value => (value ?? "").toString().trim();
   const split = value => norm(value).split(";").map(s => s.trim()).filter(Boolean);
+  const getValues = (d, field, fallbackField) => {
+    if (d && Object.prototype.hasOwnProperty.call(d, field)) return split(d[field]);
+    return fallbackField ? split(d?.[fallbackField]) : [];
+  };
+  const getCourseContexts = d => getValues(d, "course_or_context");
+  const getTools = d => getValues(d, "tools", "tool_language");
+  const getLanguages = d => getValues(d, "language");
 
   const paperTextColor = () => "#222";
   const paperStrokeColor = () => "#999";
@@ -55,25 +62,35 @@
   function buildExplodedRows(data) {
     return data.flatMap(d => {
       const populations = split(d.population_focus);
-      const tools = split(d.tool_language);
+      const courseContexts = getCourseContexts(d);
+      const tools = getTools(d);
+      const languages = getLanguages(d);
       const states = split(d.state);
       const tags = split(d.tags);
 
       const popValues = populations.length ? populations : [null];
+      const courseContextValues = courseContexts.length ? courseContexts : [null];
       const toolValues = tools.length ? tools : [null];
+      const languageValues = languages.length ? languages : [null];
       const stateValues = states.length ? states : [null];
       const tagValues = tags.length ? tags : [null];
 
       return popValues.flatMap(population_focus =>
-        toolValues.flatMap(tool_language =>
-          stateValues.flatMap(state =>
-            tagValues.map(tag => ({
-              ...d,
-              population_focus,
-              tool_language,
-              state,
-              tags: tag
-            }))
+        courseContextValues.flatMap(course_or_context =>
+          toolValues.flatMap(tools =>
+            languageValues.flatMap(language =>
+              stateValues.flatMap(state =>
+                tagValues.map(tag => ({
+                  ...d,
+                  population_focus,
+                  course_or_context,
+                  tools,
+                  language,
+                  state,
+                  tags: tag
+                }))
+              )
+            )
           )
         )
       );
@@ -84,10 +101,13 @@
     return {
       gradeOptions: d3.range(0, 13).map(g => ({ value: String(g), label: gradeLabel(g) })),
       populations: uniq(sourceRows.flatMap(d => split(d.population_focus))).filter(Boolean).sort(),
-      tools: uniq(sourceRows.flatMap(d => split(d.tool_language))).filter(Boolean).sort(),
+      courseContexts: uniq(sourceRows.flatMap(d => getCourseContexts(d))).filter(Boolean).sort(),
+      tools: uniq(sourceRows.flatMap(d => getTools(d))).filter(Boolean).sort(),
+      languages: uniq(sourceRows.flatMap(d => getLanguages(d))).filter(Boolean).sort(),
       libraries: uniq(sourceRows.map(d => norm(d.library))).filter(Boolean).sort(),
       tags: uniq(sourceRows.flatMap(d => split(d.tags))).filter(Boolean).sort(),
       types: uniq(sourceRows.map(d => norm(d.study_type))).filter(Boolean).sort(),
+      outcomes: uniq(sourceRows.map(d => norm(d.outcome_type))).filter(Boolean).sort(),
       states: uniq(sourceRows.map(d => norm(d.state))).filter(Boolean).sort()
     };
   }
@@ -95,10 +115,13 @@
   function populateFilterControls(options) {
     addOptions(el("gradeSel"), options.gradeOptions);
     addSimpleOptions(el("popSel"), options.populations);
+    addSimpleOptions(el("contextSel"), options.courseContexts);
     addSimpleOptions(el("toolSel"), options.tools);
+    addSimpleOptions(el("languageSel"), options.languages);
     addSimpleOptions(el("librarySel"), options.libraries);
     addSimpleOptions(el("tagSel"), options.tags);
     addSimpleOptions(el("typeSel"), options.types);
+    addSimpleOptions(el("outcomeSel"), options.outcomes);
     addSimpleOptions(el("stateSel"), options.states);
   }
 
@@ -120,10 +143,13 @@
       yearMax: +el("yearMax").value || 2100,
       grades: getMulti(el("gradeSel")).map(Number),
       pops: getMulti(el("popSel")),
+      courseContexts: getMulti(el("contextSel")),
       tools: getMulti(el("toolSel")),
+      languages: getMulti(el("languageSel")),
       libraries: getMulti(el("librarySel")),
       tags: getMulti(el("tagSel")),
       types: getMulti(el("typeSel")),
+      outcomes: getMulti(el("outcomeSel")),
       states: getMulti(el("stateSel"))
     };
   }
@@ -134,10 +160,13 @@
       (!d.year || (d.year >= f.yearMin && d.year <= f.yearMax)) &&
       (!f.grades.length || grades.some(g => f.grades.includes(g))) &&
       (!f.pops.length || f.pops.includes(norm(d.population_focus))) &&
-      (!f.tools.length || f.tools.includes(norm(d.tool_language))) &&
+      (!f.courseContexts.length || f.courseContexts.includes(norm(d.course_or_context))) &&
+      (!f.tools.length || f.tools.includes(norm(d.tools))) &&
+      (!f.languages.length || f.languages.includes(norm(d.language))) &&
       (!f.libraries.length || f.libraries.includes(norm(d.library))) &&
       (!f.tags.length || f.tags.includes(norm(d.tags))) &&
       (!f.types.length || f.types.includes(norm(d.study_type))) &&
+      (!f.outcomes.length || f.outcomes.includes(norm(d.outcome_type))) &&
       (!f.states.length || f.states.includes(norm(d.state)))
     );
   }
@@ -163,10 +192,13 @@
 
     setSelection("gradeSel", "g");
     setSelection("popSel", "p");
+    setSelection("contextSel", "cc");
     setSelection("toolSel", "t");
+    setSelection("languageSel", "lg");
     setSelection("librarySel", "lb");
     setSelection("tagSel", "tg");
     setSelection("typeSel", "s");
+    setSelection("outcomeSel", "o");
     setSelection("stateSel", "st");
   }
 
@@ -176,10 +208,13 @@
       y1: f.yearMax,
       g: f.grades.join(","),
       p: f.pops.join(","),
+      cc: f.courseContexts.join(","),
       t: f.tools.join(","),
+      lg: f.languages.join(","),
       lb: f.libraries.join(","),
       tg: f.tags.join(","),
       s: f.types.join(","),
+      o: f.outcomes.join(","),
       st: f.states.join(",")
     });
     return `#${params.toString()}`;
@@ -286,22 +321,50 @@
       .sort((a, b) => a.grade - b.grade);
   }
 
-  function buildHeatCounts(filteredRows) {
+  function buildCategoryCounts(filteredRows, field) {
+    const papers = groupRowsByPaper(filteredRows);
+    const paperCategoryRows = [];
+
+    for (const [paperId, paperRows] of papers) {
+      const categories = uniq(paperRows.map(d => norm(d[field]))).filter(Boolean);
+      for (const category of categories) {
+        paperCategoryRows.push({
+          paper_id: paperId,
+          category
+        });
+      }
+    }
+
+    const totalPapers = papers.size;
+    return d3.rollups(
+      paperCategoryRows,
+      values => new Set(values.map(d => d.paper_id)).size,
+      d => d.category
+    )
+      .map(([category, count]) => ({
+        category,
+        count,
+        prop: totalPapers ? count / totalPapers : 0
+      }))
+      .sort((a, b) => d3.descending(a.count, b.count) || d3.ascending(a.category, b.category));
+  }
+
+  function buildHeatCounts(filteredRows, field) {
     const papers = groupRowsByPaper(filteredRows);
     const heatRows = [];
 
     for (const [paperId, paperRows] of papers) {
       const paper = paperRows[0];
-      const paperTools = uniq(paperRows.map(d => norm(d.tool_language))).filter(Boolean);
+      const categories = uniq(paperRows.map(d => norm(d[field]))).filter(Boolean);
       const grades = getGrades(paper);
-      if (!paperTools.length || !grades.length) continue;
+      if (!categories.length || !grades.length) continue;
 
       for (const grade of grades) {
-        for (const tool of paperTools) {
+        for (const category of categories) {
           heatRows.push({
             paper_id: paperId,
             grade: gradeLabel(grade),
-            tool_language: tool
+            category
           });
         }
       }
@@ -309,22 +372,64 @@
 
     return d3.rollups(
       heatRows,
-      values => values.length,
+      values => new Set(values.map(d => d.paper_id)).size,
       d => d.grade,
-      d => d.tool_language
+      d => d.category
     )
-      .flatMap(([grade, toolRows]) =>
-        toolRows.map(([tool_language, count]) => ({
+      .flatMap(([grade, categoryRows]) =>
+        categoryRows.map(([category, count]) => ({
           grade,
-          tool_language,
+          category,
           count
         }))
       )
       .sort((a, b) => {
         const ga = a.grade === "K" ? 0 : +a.grade;
         const gb = b.grade === "K" ? 0 : +b.grade;
-        return ga - gb || d3.ascending(a.tool_language, b.tool_language);
+        return ga - gb || d3.ascending(a.category, b.category);
       });
+  }
+
+  function categoryMarginLeft(labels, minimumLeft = 140, maximumLeft = 320) {
+    const longestLabel = d3.max(labels, d => d.length) || 0;
+    return Math.max(minimumLeft, Math.min(maximumLeft, longestLabel * 8 + 36));
+  }
+
+  function heatLayout(counts, minimumLeft = 140) {
+    const categories = uniq(counts.map(d => d.category)).sort(d3.ascending);
+    return {
+      categories,
+      marginLeft: categoryMarginLeft(categories, minimumLeft)
+    };
+  }
+
+  function placeColorScale(max) {
+    const upperBound = Math.max(1, max);
+    const zeroColor = "#e8edf5";
+    const oneColor = "#6baed6";
+    const maxColor = "#08519c";
+
+    if (upperBound <= 1) {
+      return {
+        type: "linear",
+        legend: true,
+        label: "count",
+        domain: [0, 1],
+        range: [zeroColor, oneColor]
+      };
+    }
+
+    return {
+      type: "linear",
+      legend: true,
+      label: "count",
+      domain: [0, 1, upperBound],
+      range: [zeroColor, oneColor, maxColor]
+    };
+  }
+
+  function placeFillValue(d) {
+    return d.count;
   }
 
   function buildPlaceCounts(filteredRows) {
@@ -351,6 +456,25 @@
       }
     }
     return Array.from(deduped.values());
+  }
+
+  function buildTagHighlightTimelineRows(filteredRows, targetTag) {
+    const papers = groupRowsByPaper(filteredRows);
+    const rows = [];
+
+    for (const [paperId, paperRows] of papers) {
+      const paper = paperRows[0];
+      if (!paper.year) continue;
+
+      const hasTargetTag = paperRows.some(row => norm(row.tags) === targetTag);
+      rows.push({
+        paper_id: paperId,
+        year: paper.year,
+        category: hasTargetTag ? targetTag : "Other papers"
+      });
+    }
+
+    return rows;
   }
 
   function stateFeaturesWithCounts(stateCounts) {
@@ -627,6 +751,51 @@
     });
   }
 
+  function buildPaperCategoryDistributionPlot(filteredRows, { field, title }) {
+    const counts = buildCategoryCounts(filteredRows, field);
+    return Plot.plot({
+      title,
+      width: 900,
+      height: Math.max(320, counts.length * 28 + 60),
+      marginLeft: categoryMarginLeft(counts.map(d => d.category), 140, 320),
+      marginRight: 30,
+      marginTop: 40,
+      marginBottom: 50,
+      style: { background: "white", color: paperTextColor(), fontSize: "14px" },
+      x: { label: "% of filtered papers", percent: true, grid: true },
+      y: { label: null, domain: counts.map(d => d.category) },
+      marks: [
+        Plot.barX(counts, {
+          x: "prop",
+          y: "category",
+          fill: "#4c78a8",
+          title: d => `${d.category}\n${(d.prop * 100).toFixed(1)}% of filtered papers (${d.count} paper${d.count === 1 ? "" : "s"})`
+        }),
+        Plot.ruleX([0], { stroke: paperStrokeColor() })
+      ]
+    });
+  }
+
+  function buildInteractiveCategoryDistributionPlot(filteredRows, { field, title }) {
+    const counts = buildCategoryCounts(filteredRows, field);
+    return Plot.plot({
+      title,
+      height: Math.max(260, counts.length * 24 + 50),
+      marginLeft: categoryMarginLeft(counts.map(d => d.category), 120, 280),
+      x: { label: "% of filtered papers →", percent: true, grid: false },
+      y: { label: null, domain: counts.map(d => d.category) },
+      marks: [
+        Plot.barX(counts, {
+          x: "prop",
+          y: "category",
+          tip: true,
+          title: d => `${d.category}\n${(d.prop * 100).toFixed(1)}% of filtered papers (${d.count} paper${d.count === 1 ? "" : "s"})`
+        }),
+        Plot.ruleX([0])
+      ]
+    });
+  }
+
   function buildPaperTimelinePlot(filteredRows, { categoryField, title, legendTitle }) {
     const timelineRows = buildTimelineRows(filteredRows, categoryField);
     const yearValues = timelineRows.map(d => d.year).filter(Boolean);
@@ -708,10 +877,10 @@
         marginLeft: 20,
         style: { background: "white", color: paperTextColor(), fontSize: "14px" },
         projection: "albers-usa",
-        color: { scheme: "blues", legend: true, label: "Paper count", domain: [0, max] },
+        color: placeColorScale(max),
         marks: [
           Plot.geo(states, {
-            fill: "count",
+            fill: placeFillValue,
             stroke: "#666",
             title: d => `${d.code}: ${d.count} paper${d.count === 1 ? "" : "s"}`
           }),
@@ -780,10 +949,10 @@
         marginBottom: 0,
         marginLeft: 0,
         projection: "albers-usa",
-        color: { scheme: "blues", legend: true, label: "Paper count", domain: [0, max] },
+        color: placeColorScale(max),
         marks: [
           Plot.geo(states, {
-            fill: "count",
+            fill: placeFillValue,
             stroke: "#2a2f3a",
             tip: true,
             title: d => `${d.code}: ${d.count} paper${d.count === 1 ? "" : "s"}`
@@ -821,30 +990,31 @@
     });
   }
 
-  function buildPaperHeatPlot(filteredRows) {
-    const counts = buildHeatCounts(filteredRows);
+  function buildPaperHeatPlot(filteredRows, { field, title }) {
+    const counts = buildHeatCounts(filteredRows, field);
+    const { categories, marginLeft } = heatLayout(counts, 150);
     return Plot.plot({
-      title: "Tools × Grade (count of papers)",
+      title,
       width: 1100,
-      height: 700,
-      marginLeft: 300,
+      height: Math.max(320, categories.length * 28 + 120),
+      marginLeft,
       marginRight: 40,
       marginTop: 40,
       marginBottom: 60,
       style: { background: "white", color: paperTextColor(), fontSize: "14px" },
       color: { type: "log", scheme: "rdylbu", legend: true },
       x: { label: "Grade", domain: GRADE_DOMAIN },
-      y: { label: null },
+      y: { label: null, domain: categories },
       marks: [
         Plot.rect(counts, {
           x: "grade",
-          y: "tool_language",
+          y: "category",
           fill: "count",
           inset: 0.5
         }),
         Plot.text(counts, {
           x: "grade",
-          y: "tool_language",
+          y: "category",
           text: d => d.count,
           fill: d => (2 <= d.count && d.count <= 5 ? "#222" : "#d6d6d6")
         })
@@ -852,26 +1022,97 @@
     });
   }
 
-  function buildInteractiveHeatPlot(filteredRows) {
-    const counts = buildHeatCounts(filteredRows);
+  function buildPaperTagHighlightTimelinePlot(filteredRows, { targetTag, title, legendTitle }) {
+    const timelineRows = buildTagHighlightTimelineRows(filteredRows, targetTag);
+    const yearValues = timelineRows.map(d => d.year).filter(Boolean);
+    const xDomain = yearValues.length ? d3.range(d3.min(yearValues), d3.max(yearValues) + 1) : [];
+    const categoryDomain = ["Other papers", targetTag].filter(category =>
+      timelineRows.some(row => row.category === category)
+    );
+    const colorRange = ["#9aa4b2", "#f28e2b"].slice(0, categoryDomain.length);
+    const categoryColor = d3.scaleOrdinal(categoryDomain, colorRange);
+
+    const plot = Plot.plot({
+      title,
+      width: 1000,
+      height: 420,
+      marginLeft: 60,
+      marginRight: 30,
+      marginTop: 40,
+      marginBottom: 55,
+      style: { background: "white", color: paperTextColor(), fontSize: "14px" },
+      color: { domain: categoryDomain, range: colorRange, legend: false },
+      x: { label: "Year", domain: xDomain, tickFormat: d3.format("d") },
+      y: { label: "Count", grid: true, nice: true },
+      marks: [
+        Plot.barY(
+          timelineRows,
+          Plot.groupX({ y: "count" }, { x: "year", fill: "category" })
+        ),
+        Plot.ruleY([0], { stroke: paperStrokeColor() })
+      ]
+    });
+
+    const wrapper = document.createElement("div");
+    wrapper.appendChild(plot);
+    if (categoryDomain.length) {
+      wrapper.appendChild(buildCategoricalLegendSvg({
+        title: legendTitle,
+        domain: categoryDomain,
+        color: categoryColor,
+        width: 1000
+      }));
+    }
+    return wrapper;
+  }
+
+  function buildInteractiveTagHighlightTimelinePlot(filteredRows, { targetTag, title }) {
+    const timelineRows = buildTagHighlightTimelineRows(filteredRows, targetTag);
+    const yearValues = timelineRows.map(d => d.year).filter(Boolean);
+    const xDomain = yearValues.length ? d3.range(d3.min(yearValues), d3.max(yearValues) + 1) : [];
+    const categoryDomain = ["Other papers", targetTag].filter(category =>
+      timelineRows.some(row => row.category === category)
+    );
+    const colorRange = ["#9aa4b2", "#f28e2b"].slice(0, categoryDomain.length);
+
     return Plot.plot({
-      title: "Tools × Grade (count of papers)",
-      height: 450,
-      marginLeft: 250,
+      title,
+      height: 260,
+      marginLeft: 50,
+      color: { domain: categoryDomain, range: colorRange, legend: true },
+      x: { label: "year →", domain: xDomain, tickFormat: d3.format("d") },
+      y: { label: "count ↑", grid: true, nice: true },
+      marks: [
+        Plot.barY(
+          timelineRows,
+          Plot.groupX({ y: "count" }, { x: "year", fill: "category", tip: true })
+        ),
+        Plot.ruleY([0])
+      ]
+    });
+  }
+
+  function buildInteractiveHeatPlot(filteredRows, { field, title }) {
+    const counts = buildHeatCounts(filteredRows, field);
+    const { categories, marginLeft } = heatLayout(counts, 120);
+    return Plot.plot({
+      title,
+      height: Math.max(260, categories.length * 24 + 90),
+      marginLeft,
       marginBottom: 50,
       color: { type: "log", scheme: "rdylbu", legend: true },
       x: { label: null, domain: GRADE_DOMAIN },
-      y: { label: null },
+      y: { label: null, domain: categories },
       marks: [
         Plot.rect(counts, {
           x: "grade",
-          y: "tool_language",
+          y: "category",
           fill: "count",
           inset: 0.5
         }),
         Plot.text(counts, {
           x: "grade",
-          y: "tool_language",
+          y: "category",
           text: d => d.count,
           fill: d => (2 <= d.count && d.count <= 5 ? "#222" : "#d6d6d6")
         })
@@ -886,6 +1127,20 @@
     const figures = [
       { filename: `population_distribution_${suffix}.svg`, plot: buildPaperPopulationPlot(filteredRows) },
       { filename: `grade_distribution_${suffix}.svg`, plot: buildPaperGradePlot(filteredRows) },
+      {
+        filename: `tool_distribution_${suffix}.svg`,
+        plot: buildPaperCategoryDistributionPlot(filteredRows, {
+          field: "tools",
+          title: "Distribution by Tool"
+        })
+      },
+      {
+        filename: `language_distribution_${suffix}.svg`,
+        plot: buildPaperCategoryDistributionPlot(filteredRows, {
+          field: "language",
+          title: "Distribution by Language"
+        })
+      },
       {
         filename: `timeline_library_${suffix}.svg`,
         plot: buildPaperTimelinePlot(filteredRows, {
@@ -902,8 +1157,37 @@
           legendTitle: "Study Type"
         })
       },
+      {
+        filename: `timeline_outcome_type_${suffix}.svg`,
+        plot: buildPaperTimelinePlot(filteredRows, {
+          categoryField: "outcome_type",
+          title: "Timeline by Outcome Type (count)",
+          legendTitle: "Outcome Type"
+        })
+      },
+      {
+        filename: `timeline_cs_for_all_${suffix}.svg`,
+        plot: buildPaperTagHighlightTimelinePlot(filteredRows, {
+          targetTag: "CS For All",
+          title: "Timeline Highlighting CS For All",
+          legendTitle: "Tag group"
+        })
+      },
       { filename: `place_distribution_${suffix}.svg`, plot: buildPaperPlacePlot(filteredRows) },
-      { filename: `tools_by_grade_${suffix}.svg`, plot: buildPaperHeatPlot(filteredRows) }
+      {
+        filename: `tools_by_grade_${suffix}.svg`,
+        plot: buildPaperHeatPlot(filteredRows, {
+          field: "tools",
+          title: "Tools × Grade (count of papers)"
+        })
+      },
+      {
+        filename: `languages_by_grade_${suffix}.svg`,
+        plot: buildPaperHeatPlot(filteredRows, {
+          field: "language",
+          title: "Languages × Grade (count of papers)"
+        })
+      }
     ];
 
     for (const { filename, plot } of figures) {
@@ -913,12 +1197,13 @@
   }
 
   function updateKpis(filteredRows) {
-    el("kpiPapers").textContent = uniq(filteredRows.map(d => d.paper_id)).length;
-    const filteredYears = filteredRows.map(d => d.year).filter(Boolean);
+    const paperRows = Array.from(groupRowsByPaper(filteredRows).values(), values => values[0]);
+    el("kpiPapers").textContent = paperRows.length;
+    const filteredYears = paperRows.map(d => d.year).filter(Boolean);
     el("kpiYears").textContent = filteredYears.length ? `${d3.min(filteredYears)}–${d3.max(filteredYears)}` : "–";
     const places = uniq(filteredRows.map(d => norm(d.state))).filter(Boolean);
     el("kpiPlaces").textContent = places.length || "–";
-    const medN = median(filteredRows.map(d => d.n_students));
+    const medN = median(paperRows.map(d => d.n_students));
     el("kpiN").textContent = medN != null ? Math.round(medN) : "–";
   }
 
@@ -929,7 +1214,8 @@
         any: values[0],
         grades: formatGrades(getGrades(values[0])),
         pops: uniq(values.map(d => d.population_focus)).filter(Boolean).join("; "),
-        tools: uniq(values.map(d => d.tool_language)).filter(Boolean).join("; "),
+        tools: uniq(values.map(d => d.tools)).filter(Boolean).join("; "),
+        languages: uniq(values.map(d => d.language)).filter(Boolean).join("; "),
         tags: uniq(values.map(d => d.tags)).filter(Boolean).join("; "),
         outcomes: uniq(values.map(d => d.outcome_type)).filter(Boolean).join("; "),
         results: uniq(values.map(d => d.result_direction)).filter(Boolean).join("; ")
@@ -946,6 +1232,7 @@
       tr.append("td").text(info.grades);
       tr.append("td").text(info.pops);
       tr.append("td").text(info.tools);
+      tr.append("td").text(info.languages);
       tr.append("td").text(paper.study_type ?? "");
       tr.append("td").text(`${info.outcomes} → ${info.results}`);
       tr.append("td").html(`${paper.key_findings ?? ""} ${paper.url_or_doi ? `<br><a href="${paper.url_or_doi}" target="_blank">link</a>` : ""}`);
@@ -967,6 +1254,14 @@
     updateKpis(filteredRows);
     mount("#popPlot", buildInteractivePopulationPlot(filteredRows));
     mount("#gradePlot", buildInteractiveGradePlot(filteredRows));
+    mount("#toolDistPlot", buildInteractiveCategoryDistributionPlot(filteredRows, {
+      field: "tools",
+      title: "Distribution by Tool"
+    }));
+    mount("#languageDistPlot", buildInteractiveCategoryDistributionPlot(filteredRows, {
+      field: "language",
+      title: "Distribution by Language"
+    }));
     mount("#timelinePlot", buildInteractiveTimelinePlot(filteredRows, {
       categoryField: "library",
       title: "Timeline by Library (count)"
@@ -975,8 +1270,23 @@
       categoryField: "study_type",
       title: "Timeline by Study Type (count)"
     }));
+    mount("#timelineOutcomePlot", buildInteractiveTimelinePlot(filteredRows, {
+      categoryField: "outcome_type",
+      title: "Timeline by Outcome Type (count)"
+    }));
+    mount("#timelineCsForAllPlot", buildInteractiveTagHighlightTimelinePlot(filteredRows, {
+      targetTag: "CS For All",
+      title: "Timeline Highlighting CS For All"
+    }));
     mount("#placePlot", buildInteractivePlacePlot(filteredRows));
-    mount("#heatPlot", buildInteractiveHeatPlot(filteredRows));
+    mount("#toolHeatPlot", buildInteractiveHeatPlot(filteredRows, {
+      field: "tools",
+      title: "Tools × Grade (count of papers)"
+    }));
+    mount("#languageHeatPlot", buildInteractiveHeatPlot(filteredRows, {
+      field: "language",
+      title: "Languages × Grade (count of papers)"
+    }));
     renderTable(filteredRows);
 
     history.replaceState(null, "", makeHash(filter));
