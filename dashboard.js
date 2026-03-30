@@ -390,6 +390,38 @@
       });
   }
 
+  function buildPairHeatCounts(filteredRows, xField, yField) {
+    const papers = groupRowsByPaper(filteredRows);
+    const heatRows = [];
+
+    for (const [paperId, paperRows] of papers) {
+      const xValues = uniq(paperRows.map(d => norm(d[xField]))).filter(Boolean);
+      const yValues = uniq(paperRows.map(d => norm(d[yField]))).filter(Boolean);
+      if (!xValues.length || !yValues.length) continue;
+
+      for (const x of xValues) {
+        for (const y of yValues) {
+          heatRows.push({ paper_id: paperId, x, y });
+        }
+      }
+    }
+
+    return d3.rollups(
+      heatRows,
+      values => new Set(values.map(d => d.paper_id)).size,
+      d => d.x,
+      d => d.y
+    )
+      .flatMap(([x, yRows]) =>
+        yRows.map(([y, count]) => ({
+          x,
+          y,
+          count
+        }))
+      )
+      .sort((a, b) => d3.ascending(a.y, b.y) || d3.ascending(a.x, b.x));
+  }
+
   function categoryMarginLeft(labels, minimumLeft = 140, maximumLeft = 320) {
     const longestLabel = d3.max(labels, d => d.length) || 0;
     return Math.max(minimumLeft, Math.min(maximumLeft, longestLabel * 8 + 36));
@@ -1120,6 +1152,70 @@
     });
   }
 
+  function buildPaperContextOutcomeHeatPlot(filteredRows) {
+    const counts = buildPairHeatCounts(filteredRows, "course_or_context", "outcome_type");
+    const contextDomain = uniq(counts.map(d => d.x)).sort(d3.ascending);
+    const outcomeDomain = uniq(counts.map(d => d.y)).sort(d3.ascending);
+
+    return Plot.plot({
+      title: "Course / Context × Outcome Type (count of papers)",
+      width: 1100,
+      height: Math.max(320, outcomeDomain.length * 28 + 140),
+      marginLeft: categoryMarginLeft(outcomeDomain, 180),
+      marginRight: 40,
+      marginTop: 40,
+      marginBottom: 85,
+      style: { background: "white", color: paperTextColor(), fontSize: "14px" },
+      color: { type: "log", scheme: "rdylbu", legend: true },
+      x: { label: "Course / Context", domain: contextDomain },
+      y: { label: null, domain: outcomeDomain },
+      marks: [
+        Plot.rect(counts, {
+          x: "x",
+          y: "y",
+          fill: "count",
+          inset: 0.5
+        }),
+        Plot.text(counts, {
+          x: "x",
+          y: "y",
+          text: d => d.count,
+          fill: d => (2 <= d.count && d.count <= 5 ? "#222" : "#d6d6d6")
+        })
+      ]
+    });
+  }
+
+  function buildInteractiveContextOutcomeHeatPlot(filteredRows) {
+    const counts = buildPairHeatCounts(filteredRows, "course_or_context", "outcome_type");
+    const contextDomain = uniq(counts.map(d => d.x)).sort(d3.ascending);
+    const outcomeDomain = uniq(counts.map(d => d.y)).sort(d3.ascending);
+
+    return Plot.plot({
+      title: "Course / Context × Outcome Type (count of papers)",
+      height: Math.max(260, outcomeDomain.length * 24 + 100),
+      marginLeft: categoryMarginLeft(outcomeDomain, 140),
+      marginBottom: 70,
+      color: { type: "log", scheme: "rdylbu", legend: true },
+      x: { label: null, domain: contextDomain },
+      y: { label: null, domain: outcomeDomain },
+      marks: [
+        Plot.rect(counts, {
+          x: "x",
+          y: "y",
+          fill: "count",
+          inset: 0.5
+        }),
+        Plot.text(counts, {
+          x: "x",
+          y: "y",
+          text: d => d.count,
+          fill: d => (2 <= d.count && d.count <= 5 ? "#222" : "#d6d6d6")
+        })
+      ]
+    });
+  }
+
   function exportPaperFigures() {
     const filteredRows = getFilteredRows();
     const suffix = slugify(location.hash.replace(/^#/, "") || "current_filters");
@@ -1127,6 +1223,13 @@
     const figures = [
       { filename: `population_distribution_${suffix}.svg`, plot: buildPaperPopulationPlot(filteredRows) },
       { filename: `grade_distribution_${suffix}.svg`, plot: buildPaperGradePlot(filteredRows) },
+      {
+        filename: `course_context_distribution_${suffix}.svg`,
+        plot: buildPaperCategoryDistributionPlot(filteredRows, {
+          field: "course_or_context",
+          title: "Distribution by Course / Context"
+        })
+      },
       {
         filename: `tool_distribution_${suffix}.svg`,
         plot: buildPaperCategoryDistributionPlot(filteredRows, {
@@ -1187,6 +1290,10 @@
           field: "language",
           title: "Languages × Grade (count of papers)"
         })
+      },
+      {
+        filename: `context_by_outcome_type_${suffix}.svg`,
+        plot: buildPaperContextOutcomeHeatPlot(filteredRows)
       }
     ];
 
@@ -1254,6 +1361,10 @@
     updateKpis(filteredRows);
     mount("#popPlot", buildInteractivePopulationPlot(filteredRows));
     mount("#gradePlot", buildInteractiveGradePlot(filteredRows));
+    mount("#contextDistPlot", buildInteractiveCategoryDistributionPlot(filteredRows, {
+      field: "course_or_context",
+      title: "Distribution by Course / Context"
+    }));
     mount("#toolDistPlot", buildInteractiveCategoryDistributionPlot(filteredRows, {
       field: "tools",
       title: "Distribution by Tool"
@@ -1287,6 +1398,7 @@
       field: "language",
       title: "Languages × Grade (count of papers)"
     }));
+    mount("#contextOutcomeHeatPlot", buildInteractiveContextOutcomeHeatPlot(filteredRows));
     renderTable(filteredRows);
 
     history.replaceState(null, "", makeHash(filter));
