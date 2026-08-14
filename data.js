@@ -7,12 +7,12 @@ const DATA = [
     authors:"Margolis et al.", country:"USA", state:"CA",
     grades:[9, 10], population_focus:"Latinx; Black; Low-Income",
     study_type:"Case Study", n_students:2000, n_teachers:null, n_sites:27,
-    course_or_context:"Classroom", tools:"Scratch", language:"Scratch",
+    course_or_context:"Classroom", tools:"", language:"Scratch",
     outcome_type:"Access", result_direction:"positive",
     key_findings:"District reform (ECS) expanded from pilot to 27 HS with meaningful uptake among Latino/a and Black students.",
     limitations_short:"Qual evidence from selected sites; limited validated CS assessments; context-specific to large urban district.",
     url_or_doi:"https://dl.acm.org/doi/10.1145/2381083.2381102",
-    tags:"", library:"ACM"
+    tags:"Culturally Relevant", library:"ACM"
   },
   {
     paper_id:"MagerkoEtAl_2015", year:2015, title:"EarSketch: a STEAM approach to broadening participation in AP CSP",
@@ -24,7 +24,7 @@ const DATA = [
     key_findings:"Feasibility across typical HS; teachers can run EarSketch; equity rationale via music-making.",
     limitations_short:"Small N of teachers/classes; short duration; no randomized comparison.",
     url_or_doi:"https://dl.acm.org/doi/10.1145/2886418",
-    tags:"", library:"ACM"
+    tags:"Culturally Relevant", library:"ACM"
   },
 
   {
@@ -45,7 +45,7 @@ const DATA = [
     authors:"Adams and Webster", country:"USA", state:"MI",
     grades:[6, 7, 8], population_focus:"Women",
     study_type:"Case Study", n_students:322, n_teachers:null, n_sites:null,
-    course_or_context:"Summer Program", tools:"Alice; Scratch", language:"Alice; Scratch",
+    course_or_context:"Summer Program", tools:"", language:"Alice; Scratch",
     outcome_type:"Learning", result_direction:"",
     key_findings:"",
     limitations_short:"",
@@ -58,7 +58,7 @@ const DATA = [
     authors:"Franklin et al.", country:"USA", state:"CA",
     grades:[6, 7, 8], population_focus:"Unspecified",
     study_type:"Case Study", n_students:22, n_teachers:null, n_sites:null,
-    course_or_context:"Summer Program", tools:"Scratch", language:"Scratch",
+    course_or_context:"Summer Program", tools:"", language:"Scratch",
     outcome_type:"Learning", result_direction:"",
     key_findings:"",
     limitations_short:"",
@@ -76,7 +76,7 @@ const DATA = [
     key_findings:"",
     limitations_short:"",
     url_or_doi:"https://dl.acm.org/doi/10.1145/2037276.2037281",
-    tags:"", library:"ACM"
+    tags:"Culturally Relevant", library:"ACM"
   },
 
   {
@@ -84,7 +84,7 @@ const DATA = [
     authors:"Grover et al.", country:"USA", state:"",
     grades:[6, 7, 8], population_focus:"Unspecified",
     study_type:"Case Study", n_students:79, n_teachers:null, n_sites:null,
-    course_or_context:"Classroom", tools:"Scratch", language:"Scratch",
+    course_or_context:"Classroom", tools:"", language:"Scratch",
     outcome_type:"Learning", result_direction:"",
     key_findings:"",
     limitations_short:"",
@@ -110,7 +110,7 @@ const DATA = [
     authors:"Lee et al.", country:"USA", state:"MA",
     grades:[6, 7, 8], population_focus:"Unspecified",
     study_type:"Case Study", n_students:31, n_teachers:null, n_sites:null,
-    course_or_context:"Summer Program", tools:"Google Teachable Machine; Scratch", language:"Scratch",
+    course_or_context:"Summer Program", tools:"Google Teachable Machine", language:"Scratch",
     outcome_type:"Learning", result_direction:"",
     key_findings:"",
     limitations_short:"",
@@ -149,7 +149,7 @@ const DATA = [
     authors:"Basu", country:"USA", state:"CA",
     grades:[6, 7, 8], population_focus:"Low-Income; Unspecified",
     study_type:"Case Study", n_students:160, n_teachers:null, n_sites:null,
-    course_or_context:"Classroom", tools:"Scratch; MIT App Inventor", language:"Scratch",
+    course_or_context:"Classroom", tools:"MIT App Inventor", language:"Scratch",
     outcome_type:"Learning", result_direction:"",
     key_findings:"",
     limitations_short:"",
@@ -197,7 +197,7 @@ const DATA = [
     authors:"Adams", country:"USA", state:"MI",
     grades:[6, 7, 8], population_focus:"Unspecified; Disability",
     study_type:"Case Study", n_students:null, n_teachers:null, n_sites:2,
-    course_or_context:"Summer Program", tools:"Scratch; Alice", language:"Scratch; Alice",
+    course_or_context:"Summer Program", tools:"", language:"Scratch; Alice",
     outcome_type:"Engagement", result_direction:"Unspecified/nuanced",
     key_findings:"Scratch lowered entry compared to Alice; stories/game projects showed positive engagement; accessibility via Scratch allowed deep involvement for some blind students.",
     limitations_short:"Prior experience confound; IDE limitations; no comparison/control; assessment mostly descriptive.",
@@ -209,7 +209,7 @@ const DATA = [
     authors:"Weintrop & Wilensky", country:"USA", state:"IL",
     grades:[9, 10, 11, 12], population_focus:"Unspecified",
     study_type:"Case Study", n_students:60, n_teachers:1, n_sites:1,
-    course_or_context:"Classroom", tools:"Scratch; Pencil", language:"Scratch",
+    course_or_context:"Classroom", tools:"Pencil", language:"Scratch",
     outcome_type:"Learning", result_direction:"mixed/nuanced",
     key_findings:"Similar scores overall; text-based group scored higher on comprehension; block-based group reported greater desire to take more CS.",
     limitations_short:"Short 5-week window; single selective public school; constrained to Pencil.cc; teacher choice of methods may vary.",
@@ -238,7 +238,7 @@ const DATA = [
     key_findings:"Justice-centered, culturally relevant pedagogy demystified CS, connected to everyday life, and amplified student voice → engagement and agency.",
     limitations_short:"Practices may be hard to replicate without teacher PD; some misalignment with all five CRP tenets noted.",
     url_or_doi:"https://dl.acm.org/doi/10.1145/3322210",
-    tags:"CS For All", library:"ACM"
+    tags:"CS For All; Culturally Relevant", library:"ACM"
   },
   {
     paper_id:"WangandMoghadam_2017", year:2017, title:"Diversity Barriers in K-12 Computer Science Education: Structural and Social",
@@ -321,7 +321,7 @@ const DATA = [
     authors:"Vogel et al.", country:"USA", state:"NY",
     grades:[6, 7, 8], population_focus:"Latinx",
     study_type:"Case Study", n_students:null, n_teachers:null, n_sites:null,
-    course_or_context:"Classroom", tools:"Scratch", language:"Scratch",
+    course_or_context:"Classroom", tools:"", language:"Scratch",
     outcome_type:"Learning", result_direction:"descriptive/positive",
     key_findings:"Students leverage full linguistic resources to engage in CT (e.g., remixing, abstraction); computational literacies intertwine with other literacies.",
     limitations_short:"No quantitative learning outcomes; small convenience samples.",
@@ -363,11 +363,11 @@ const DATA = [
     authors:"Madkins et al.", country:"USA", state:"CA",
     grades:[9, 10, 11, 12], population_focus:"Women; Unspecified",
     study_type:"Case Study", n_students:1913, n_teachers:15, n_sites:null,
-    course_or_context:"Summer Program; Classroom", tools:"Scratch", language:"Scratch",
+    course_or_context:"Summer Program; Classroom", tools:"", language:"Scratch",
     outcome_type:"Engagement", result_direction:"",
     key_findings:"",
     limitations_short:"",
-    url_or_doi:"",
+    url_or_doi:"https://doi.org/10.1109/RESPECT46404.2019.8985773",
     tags:"Culturally Relevant", library:"IEEE"
   },
   {
@@ -495,7 +495,7 @@ const DATA = [
     authors:"Mack et al.", country:"USA", state:"",
     grades:[5, 6, 7, 8], population_focus:"Black",
     study_type:"Case Study", n_students:40, n_teachers:null, n_sites:null,
-    course_or_context:"Summer Program", tools:"Lego; Scratch; Sphero", language:"Scratch",
+    course_or_context:"Summer Program", tools:"Lego; Sphero", language:"Scratch",
     outcome_type:"Access", result_direction:"",
     key_findings:"",
     limitations_short:"",
@@ -594,7 +594,7 @@ const DATA = [
     authors:"Jacob et al.", country:"USA", state:"CA",
     grades:[3, 4, 5], population_focus:"Latinx; Women; Low-Income",
     study_type:"Case Study", n_students:50, n_teachers:7, n_sites:7,
-    course_or_context:"Classroom", tools:"Scratch; Code.org", language:"Scratch",
+    course_or_context:"Classroom", tools:"Code.org", language:"Scratch",
     outcome_type:"Learning", result_direction:"positive",
     key_findings:"Significant gains in CS identity (experience, self-belief, family support); interviews underscore family/peer roles.",
     limitations_short:"Small N; no control; survey adapted from science; possible ceiling effects.",
@@ -642,7 +642,7 @@ const DATA = [
     authors:"Northrup et al.", country:"USA", state:"",
     grades:[], population_focus:"Rural",
     study_type:"Survey", n_students:null, n_teachers:13, n_sites:1,
-    course_or_context:"Teacher Development", tools:"Scratch", language:"Python; Scratch",
+    course_or_context:"Teacher Development", tools:"", language:"Python; Scratch",
     outcome_type:"Access", result_direction:"",
     key_findings:"",
     limitations_short:"",
@@ -666,7 +666,7 @@ const DATA = [
     authors:"Master et al.", country:"USA", state:"RI",
     grades:[1, 2, 3], population_focus:"Women",
     study_type:"Case Study", n_students:363, n_teachers:null, n_sites:null,
-    course_or_context:"Out-of-school Program", tools:"Scratch; Kodable", language:"Scratch",
+    course_or_context:"Out-of-school Program", tools:"Kodable", language:"Scratch",
     outcome_type:"Learning", result_direction:"",
     key_findings:"",
     limitations_short:"",

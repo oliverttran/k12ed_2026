@@ -227,13 +227,9 @@
       .replace(/^_+|_+$/g, "");
   }
 
-  function median(values) {
-    const sorted = values
-      .filter(v => v != null && !Number.isNaN(v))
-      .sort((a, b) => a - b);
-    if (!sorted.length) return null;
-    const mid = Math.floor(sorted.length / 2);
-    return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  function meanValue(values) {
+    const valid = values.filter(v => v != null && !Number.isNaN(v));
+    return valid.length ? d3.mean(valid) : null;
   }
 
   function getGrades(d) {
@@ -278,14 +274,14 @@
       paperPopulationRows,
       values => ({
         count: new Set(values.map(d => d.paper_id)).size,
-        median_n: median(values.map(d => d.n_students))
+        mean_n: meanValue(values.map(d => d.n_students))
       }),
       d => d.population_focus
     )
       .map(([population_focus, stats]) => ({
         population_focus,
         count: stats.count,
-        median_n: stats.median_n,
+        mean_n: stats.mean_n,
         prop: totalPapers ? stats.count / totalPapers : 0
       }))
       .sort((a, b) => d3.descending(a.count, b.count) || d3.ascending(a.population_focus, b.population_focus));
@@ -354,16 +350,15 @@
     const heatRows = [];
 
     for (const [paperId, paperRows] of papers) {
-      const paper = paperRows[0];
       const categories = uniq(paperRows.map(d => norm(d[field]))).filter(Boolean);
-      const grades = getGrades(paper);
-      if (!categories.length || !grades.length) continue;
+      const populations = uniq(paperRows.map(d => norm(d.population_focus))).filter(Boolean);
+      if (!categories.length || !populations.length) continue;
 
-      for (const grade of grades) {
+      for (const population_focus of populations) {
         for (const category of categories) {
           heatRows.push({
             paper_id: paperId,
-            grade: gradeLabel(grade),
+            population_focus,
             category
           });
         }
@@ -373,26 +368,27 @@
     return d3.rollups(
       heatRows,
       values => new Set(values.map(d => d.paper_id)).size,
-      d => d.grade,
+      d => d.population_focus,
       d => d.category
     )
-      .flatMap(([grade, categoryRows]) =>
+      .flatMap(([population_focus, categoryRows]) =>
         categoryRows.map(([category, count]) => ({
-          grade,
+          population_focus,
           category,
           count
         }))
       )
-      .sort((a, b) => {
-        const ga = a.grade === "K" ? 0 : +a.grade;
-        const gb = b.grade === "K" ? 0 : +b.grade;
-        return ga - gb || d3.ascending(a.category, b.category);
-      });
+      .sort((a, b) => d3.ascending(a.population_focus, b.population_focus) || d3.ascending(a.category, b.category));
   }
 
   function categoryMarginLeft(labels, minimumLeft = 140, maximumLeft = 320) {
     const longestLabel = d3.max(labels, d => d.length) || 0;
     return Math.max(minimumLeft, Math.min(maximumLeft, longestLabel * 8 + 36));
+  }
+
+  function categoryMarginBottom(labels, minimumBottom = 80, maximumBottom = 180) {
+    const longestLabel = d3.max(labels, d => d.length) || 0;
+    return Math.max(minimumBottom, Math.min(maximumBottom, longestLabel * 4 + 28));
   }
 
   function heatLayout(counts, minimumLeft = 140) {
@@ -405,9 +401,9 @@
 
   function placeColorScale(max) {
     const upperBound = Math.max(1, max);
-    const zeroColor = "#e8edf5";
-    const oneColor = "#6baed6";
-    const maxColor = "#08519c";
+    const zeroColor = "#ec6b6b";
+    const oneColor = "#5346e8";
+    const maxColor = "#2cee46";
 
     if (upperBound <= 1) {
       return {
@@ -467,14 +463,62 @@
       if (!paper.year) continue;
 
       const hasTargetTag = paperRows.some(row => norm(row.tags) === targetTag);
+      if (!hasTargetTag) continue;
       rows.push({
         paper_id: paperId,
         year: paper.year,
-        category: hasTargetTag ? targetTag : "Other papers"
+        category: targetTag
       });
     }
 
     return rows;
+  }
+
+  function buildTimelineYearDomain(timelineRows) {
+    const yearValues = timelineRows.map(d => d.year).filter(Boolean);
+    return yearValues.length ? d3.range(d3.min(yearValues), d3.max(yearValues) + 1) : [];
+  }
+
+  function buildTimelineSeriesRows(timelineRows, categoryDomain, yearDomain) {
+    if (!categoryDomain.length || !yearDomain.length) {
+      return [];
+    }
+
+    const countMap = new Map(
+      d3.rollups(
+        timelineRows,
+        values => values.length,
+        d => d.year,
+        d => d.category
+      ).flatMap(([year, categoryRows]) =>
+        categoryRows.map(([category, count]) => [`${year}||${category}`, count])
+      )
+    );
+
+    return categoryDomain.flatMap(category =>
+      yearDomain.map(year => ({
+        year,
+        category,
+        count: countMap.get(`${year}||${category}`) || 0
+      }))
+    );
+  }
+
+  function buildTotalTimelineRows(filteredRows) {
+    const countByYear = new Map(
+      d3.rollups(
+        filteredRows.filter(d => d.year),
+        values => new Set(values.map(d => d.paper_id)).size,
+        d => d.year
+      )
+    );
+    const yearValues = Array.from(countByYear.keys()).sort((a, b) => a - b);
+    if (!yearValues.length) return [];
+    const yearDomain = d3.range(yearValues[0], yearValues[yearValues.length - 1] + 1);
+    return yearDomain.map(year => ({
+      year,
+      count: countByYear.get(year) || 0
+    }));
   }
 
   function stateFeaturesWithCounts(stateCounts) {
@@ -539,6 +583,86 @@
     return svg;
   }
 
+  function addLegendOverlayToPlot(plotNode, { title, domain, color }) {
+    if (!plotNode || !domain.length) return plotNode;
+    const svg = plotNode.tagName?.toLowerCase() === "svg"
+      ? plotNode
+      : plotNode.querySelector("svg");
+    if (!svg) return plotNode;
+
+    const vb = parseViewBox(svg);
+    const rowHeight = 22;
+    const titleHeight = title ? 22 : 6;
+    const paddingX = 10;
+    const paddingY = 8;
+    const lineSampleWidth = 16;
+    const gap = 8;
+    const maxLabelLength = d3.max(domain, label => String(label).length) || 0;
+    const labelWidth = maxLabelLength * 8.2;
+    const legendWidth = Math.min(320, Math.max(150, labelWidth + lineSampleWidth + gap * 3 + paddingX * 2));
+    const legendHeight = paddingY * 2 + titleHeight + domain.length * rowHeight;
+    const x = vb.x + vb.width - legendWidth - 12;
+    const y = vb.y + 12;
+
+    const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    group.setAttribute("class", "legend-overlay");
+
+    const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    bg.setAttribute("x", String(x));
+    bg.setAttribute("y", String(y));
+    bg.setAttribute("width", String(legendWidth));
+    bg.setAttribute("height", String(legendHeight));
+    bg.setAttribute("rx", "8");
+    bg.setAttribute("fill", "rgba(255,255,255,0.92)");
+    bg.setAttribute("stroke", "#d0d7de");
+    bg.setAttribute("stroke-width", "0.8");
+    group.appendChild(bg);
+
+    if (title) {
+      const titleText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      titleText.setAttribute("x", String(x + paddingX));
+      titleText.setAttribute("y", String(y + paddingY + 13));
+      titleText.setAttribute("font-size", "14pt");
+      titleText.setAttribute("font-weight", "600");
+      titleText.setAttribute("fill", paperTextColor());
+      titleText.textContent = title;
+      group.appendChild(titleText);
+    }
+
+    domain.forEach((label, i) => {
+      const rowY = y + paddingY + titleHeight + i * rowHeight + 8;
+
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("x1", String(x + paddingX));
+      line.setAttribute("x2", String(x + paddingX + lineSampleWidth));
+      line.setAttribute("y1", String(rowY));
+      line.setAttribute("y2", String(rowY));
+      line.setAttribute("stroke", color(label));
+      line.setAttribute("stroke-width", "2.5");
+      group.appendChild(line);
+
+      const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      dot.setAttribute("cx", String(x + paddingX + lineSampleWidth / 2));
+      dot.setAttribute("cy", String(rowY));
+      dot.setAttribute("r", "3.5");
+      dot.setAttribute("fill", color(label));
+      dot.setAttribute("stroke", "white");
+      dot.setAttribute("stroke-width", "1");
+      group.appendChild(dot);
+
+      const labelText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      labelText.setAttribute("x", String(x + paddingX + lineSampleWidth + gap));
+      labelText.setAttribute("y", String(rowY + 5));
+      labelText.setAttribute("font-size", "14pt");
+      labelText.setAttribute("fill", paperTextColor());
+      labelText.textContent = label;
+      group.appendChild(labelText);
+    });
+
+    svg.appendChild(group);
+    return plotNode;
+  }
+
   function parseViewBox(svgNode) {
     const raw = (svgNode.getAttribute("viewBox") || "").trim();
     const parts = raw.split(/[\s,]+/).map(Number);
@@ -565,6 +689,10 @@
     style.textContent = `
       svg { background: white; color: ${paperTextColor()}; }
       text { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+      g[aria-label="legend"] text,
+      [aria-label="legend"] text,
+      .legend text,
+      .legend-overlay text { font-size: 14pt !important; }
     `;
     clone.insertBefore(style, clone.firstChild);
 
@@ -625,6 +753,10 @@
     style.textContent = `
       svg { background: white; color: ${paperTextColor()}; }
       text { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+      g[aria-label="legend"] text,
+      [aria-label="legend"] text,
+      .legend text,
+      .legend-overlay text { font-size: 14pt !important; }
     `;
     merged.appendChild(style);
 
@@ -663,45 +795,48 @@
 
   function buildPaperPopulationPlot(filteredRows) {
     const counts = buildPopulationCounts(filteredRows);
+    const categories = counts.map(d => d.population_focus);
     return Plot.plot({
       title: "Distribution by Population Group",
       width: 900,
-      height: Math.max(340, counts.length * 30),
-      marginLeft: 180,
+      height: 420,
+      marginLeft: 60,
       marginRight: 30,
       marginTop: 40,
-      marginBottom: 50,
+      marginBottom: categoryMarginBottom(categories, 100, 180),
       style: { background: "white", color: paperTextColor(), fontSize: "14px" },
-      x: { label: "% of filtered papers", percent: true, grid: true },
-      y: { label: null, domain: counts.map(d => d.population_focus) },
+      x: { label: null, domain: categories, tickRotate: -35 },
+      y: { label: "% of articles", percent: true, grid: true },
       marks: [
-        Plot.barX(counts, {
-          x: "prop",
-          y: "population_focus",
-          fill: "#4c78a8",
-          title: d => `${d.population_focus}\n${(d.prop * 100).toFixed(1)}% (${d.count} paper${d.count === 1 ? "" : "s"})\nMedian sample size: ${d.median_n != null ? Math.round(d.median_n) : "N/A"}`
+        Plot.barY(counts, {
+          x: "population_focus",
+          y: "prop",
+          fill: "#f88730",
+          title: d => `${d.population_focus}\n${(d.prop * 100).toFixed(1)}% (${d.count} paper${d.count === 1 ? "" : "s"})\nMean sample size: ${d.mean_n != null ? Math.round(d.mean_n) : "N/A"}`
         }),
-        Plot.ruleX([0], { stroke: paperStrokeColor() })
+        Plot.ruleY([0], { stroke: paperStrokeColor() })
       ]
     });
   }
 
   function buildInteractivePopulationPlot(filteredRows) {
     const counts = buildPopulationCounts(filteredRows);
+    const categories = counts.map(d => d.population_focus);
     return Plot.plot({
       title: "Distribution by Population Group",
-      height: Math.max(320, counts.length * 28),
-      marginLeft: 140,
-      x: { label: "% of filtered papers →", percent: true, grid: false },
-      y: { label: null, domain: counts.map(d => d.population_focus) },
+      height: 360,
+      marginLeft: 50,
+      marginBottom: categoryMarginBottom(categories, 96, 170),
+      x: { label: null, domain: categories, tickRotate: -35 },
+      y: { label: "% of articles ↑", percent: true, grid: false },
       marks: [
-        Plot.barX(counts, {
-          x: "prop",
-          y: "population_focus",
+        Plot.barY(counts, {
+          x: "population_focus",
+          y: "prop",
           tip: true,
-          title: d => `${d.population_focus}\n${(d.prop * 100).toFixed(1)}% (${d.count} paper${d.count === 1 ? "" : "s"})\nMedian sample size: ${d.median_n != null ? Math.round(d.median_n) : "N/A"}`
+          title: d => `${d.population_focus}\n${(d.prop * 100).toFixed(1)}% (${d.count} paper${d.count === 1 ? "" : "s"})\nMean sample size: ${d.mean_n != null ? Math.round(d.mean_n) : "N/A"}`
         }),
-        Plot.ruleX([0])
+        Plot.ruleY([0])
       ]
     });
   }
@@ -717,14 +852,14 @@
       marginTop: 40,
       marginBottom: 55,
       style: { background: "white", color: paperTextColor(), fontSize: "14px" },
-      x: { label: "% of filtered papers", percent: true, grid: true },
+      x: { label: "% of articles", percent: true, grid: true },
       y: { label: null, domain: counts.map(d => d.grade_label) },
       marks: [
         Plot.barX(counts, {
           x: "prop",
           y: "grade_label",
-          fill: "#4c78a8",
-          title: d => `${d.grade_label}\n${(d.prop * 100).toFixed(1)}% of filtered papers (${d.count} paper${d.count === 1 ? "" : "s"})`
+          fill: "#f88730",
+          title: d => `${d.grade_label}\n${(d.prop * 100).toFixed(1)}% of articles (${d.count} paper${d.count === 1 ? "" : "s"})`
         }),
         Plot.ruleX([0], { stroke: paperStrokeColor() })
       ]
@@ -737,59 +872,107 @@
       title: "Distribution by Grade",
       height: 320,
       marginLeft: 60,
-      x: { label: "% of filtered papers →", percent: true, grid: false },
+      x: { label: "% of articles →", percent: true, grid: false },
       y: { label: null, domain: counts.map(d => d.grade_label) },
       marks: [
         Plot.barX(counts, {
           x: "prop",
           y: "grade_label",
           tip: true,
-          title: d => `${d.grade_label}\n${(d.prop * 100).toFixed(1)}% of filtered papers (${d.count} paper${d.count === 1 ? "" : "s"})`
+          title: d => `${d.grade_label}\n${(d.prop * 100).toFixed(1)}% of articles (${d.count} paper${d.count === 1 ? "" : "s"})`
         }),
         Plot.ruleX([0])
       ]
     });
   }
 
-  function buildPaperCategoryDistributionPlot(filteredRows, { field, title }) {
+  function buildPaperCategoryDistributionPlot(filteredRows, { field, title, orientation = "horizontal" }) {
     const counts = buildCategoryCounts(filteredRows, field);
+    const categories = counts.map(d => d.category);
+
+    if (orientation === "vertical") {
+      return Plot.plot({
+        title,
+        width: 900,
+        height: 420,
+        marginLeft: 60,
+        marginRight: 30,
+        marginTop: 40,
+        marginBottom: categoryMarginBottom(categories, 100, 180),
+        style: { background: "white", color: paperTextColor(), fontSize: "14px" },
+        x: { label: null, domain: categories, tickRotate: -35 },
+        y: { label: "% of articles", percent: true, grid: true },
+        marks: [
+          Plot.barY(counts, {
+            x: "category",
+            y: "prop",
+            fill: "#f88730",
+            title: d => `${d.category}\n${(d.prop * 100).toFixed(1)}% of articles (${d.count} paper${d.count === 1 ? "" : "s"})`
+          }),
+          Plot.ruleY([0], { stroke: paperStrokeColor() })
+        ]
+      });
+    }
+
     return Plot.plot({
       title,
       width: 900,
       height: Math.max(320, counts.length * 28 + 60),
-      marginLeft: categoryMarginLeft(counts.map(d => d.category), 140, 320),
+      marginLeft: categoryMarginLeft(categories, 140, 320),
       marginRight: 30,
       marginTop: 40,
       marginBottom: 50,
       style: { background: "white", color: paperTextColor(), fontSize: "14px" },
-      x: { label: "% of filtered papers", percent: true, grid: true },
-      y: { label: null, domain: counts.map(d => d.category) },
+      x: { label: "% of articles", percent: true, grid: true },
+      y: { label: null, domain: categories },
       marks: [
         Plot.barX(counts, {
           x: "prop",
           y: "category",
-          fill: "#4c78a8",
-          title: d => `${d.category}\n${(d.prop * 100).toFixed(1)}% of filtered papers (${d.count} paper${d.count === 1 ? "" : "s"})`
+          fill: "#f88730",
+          title: d => `${d.category}\n${(d.prop * 100).toFixed(1)}% of articles (${d.count} paper${d.count === 1 ? "" : "s"})`
         }),
         Plot.ruleX([0], { stroke: paperStrokeColor() })
       ]
     });
   }
 
-  function buildInteractiveCategoryDistributionPlot(filteredRows, { field, title }) {
+  function buildInteractiveCategoryDistributionPlot(filteredRows, { field, title, orientation = "horizontal" }) {
     const counts = buildCategoryCounts(filteredRows, field);
+    const categories = counts.map(d => d.category);
+
+    if (orientation === "vertical") {
+      return Plot.plot({
+        title,
+        height: 360,
+        marginLeft: 50,
+        marginBottom: categoryMarginBottom(categories, 96, 170),
+        x: { label: null, domain: categories, tickRotate: -35 },
+        y: { label: "% of articles ↑", percent: true, grid: false },
+        marks: [
+          Plot.barY(counts, {
+            x: "category",
+            y: "prop",
+            tip: true,
+            title: d => `${d.category}\n${(d.prop * 100).toFixed(1)}% of articles (${d.count} paper${d.count === 1 ? "" : "s"})`
+          }),
+          Plot.ruleY([0])
+        ]
+      });
+    }
+
     return Plot.plot({
       title,
       height: Math.max(260, counts.length * 24 + 50),
-      marginLeft: categoryMarginLeft(counts.map(d => d.category), 120, 280),
-      x: { label: "% of filtered papers →", percent: true, grid: false },
-      y: { label: null, domain: counts.map(d => d.category) },
+      marginLeft: categoryMarginLeft(categories, 120, 280),
+      x: { label: "% of articles →", percent: true, grid: false },
+      y: { label: null, domain: categories },
       marks: [
         Plot.barX(counts, {
           x: "prop",
           y: "category",
           tip: true,
-          title: d => `${d.category}\n${(d.prop * 100).toFixed(1)}% of filtered papers (${d.count} paper${d.count === 1 ? "" : "s"})`
+          title: d => `${d.category}\n${(d.prop * 100).toFixed(1)}% of articles (${d.count} paper${d.count === 1 ? "" : "s"})`
         }),
         Plot.ruleX([0])
       ]
@@ -798,12 +981,15 @@
 
   function buildPaperTimelinePlot(filteredRows, { categoryField, title, legendTitle }) {
     const timelineRows = buildTimelineRows(filteredRows, categoryField);
-    const yearValues = timelineRows.map(d => d.year).filter(Boolean);
-    const xDomain = yearValues.length ? d3.range(d3.min(yearValues), d3.max(yearValues) + 1) : [];
+    const yearDomain = buildTimelineYearDomain(timelineRows);
     const categoryDomain = uniq(timelineRows.map(d => norm(d.category))).filter(Boolean).sort(d3.ascending);
     const categoryRange = categoricalColors(categoryDomain.length);
     const categoryColor = d3.scaleOrdinal(categoryDomain, categoryRange);
-
+    const seriesRows = buildTimelineSeriesRows(
+      timelineRows,
+      categoryDomain,
+      yearDomain
+    );
     const plot = Plot.plot({
       title,
       width: 1000,
@@ -814,47 +1000,138 @@
       marginBottom: 55,
       style: { background: "white", color: paperTextColor(), fontSize: "14px" },
       color: { domain: categoryDomain, range: categoryRange, legend: false },
-      x: { label: "Year", domain: xDomain, tickFormat: d3.format("d") },
+      x: { label: "Year", domain: yearDomain, tickFormat: d3.format("d") },
       y: { label: "Count", grid: true, nice: true },
       marks: [
-        Plot.barY(
-          timelineRows,
-          Plot.groupX({ y: "count" }, { x: "year", fill: "category" })
-        ),
-        Plot.ruleY([0], { stroke: paperStrokeColor() })
+        Plot.ruleY([0], { stroke: paperStrokeColor() }),
+        Plot.lineY(seriesRows, {
+          x: "year",
+          y: "count",
+          stroke: "category",
+          strokeWidth: 2.5
+        }),
+        Plot.dot(seriesRows, {
+          x: "year",
+          y: "count",
+          fill: "category",
+          stroke: "white",
+          strokeWidth: 1.2,
+          r: 4,
+          title: d => `${d.year}\n${d.category}: ${d.count} paper${d.count === 1 ? "" : "s"}`
+        })
       ]
     });
 
-    const wrapper = document.createElement("div");
-    wrapper.appendChild(plot);
-    if (categoryDomain.length) {
-      wrapper.appendChild(buildCategoricalLegendSvg({
-        title: legendTitle,
-        domain: categoryDomain,
-        color: categoryColor,
-        width: 1000
-      }));
-    }
-    return wrapper;
+    return addLegendOverlayToPlot(plot, {
+      title: legendTitle,
+      domain: categoryDomain,
+      color: categoryColor
+    });
   }
 
   function buildInteractiveTimelinePlot(filteredRows, { categoryField, title }) {
     const timelineRows = buildTimelineRows(filteredRows, categoryField);
-    const yearValues = timelineRows.map(d => d.year).filter(Boolean);
-    const xDomain = yearValues.length ? d3.range(d3.min(yearValues), d3.max(yearValues) + 1) : [];
+    const yearDomain = buildTimelineYearDomain(timelineRows);
+    const categoryDomain = uniq(timelineRows.map(d => norm(d.category))).filter(Boolean).sort(d3.ascending);
+    const categoryRange = categoricalColors(categoryDomain.length);
+    const seriesRows = buildTimelineSeriesRows(
+      timelineRows,
+      categoryDomain,
+      yearDomain
+    );
     return Plot.plot({
       title,
       height: 260,
       marginLeft: 50,
-      color: { legend: true },
-      x: { label: "year →", domain: xDomain, tickFormat: d3.format("d") },
+      color: { domain: categoryDomain, range: categoryRange, legend: true },
+      x: { label: "year →", domain: yearDomain, tickFormat: d3.format("d") },
       y: { label: "count ↑", grid: true, nice: true },
       marks: [
-        Plot.barY(
-          timelineRows,
-          Plot.groupX({ y: "count" }, { x: "year", fill: "category", tip: true })
-        ),
-        Plot.ruleY([0])
+        Plot.ruleY([0]),
+        Plot.lineY(seriesRows, {
+          x: "year",
+          y: "count",
+          stroke: "category",
+          strokeWidth: 2.5
+        }),
+        Plot.dot(seriesRows, {
+          x: "year",
+          y: "count",
+          fill: "category",
+          stroke: "white",
+          strokeWidth: 1.2,
+          r: 4,
+          tip: true,
+          title: d => `${d.year}\n${d.category}: ${d.count} paper${d.count === 1 ? "" : "s"}`
+        })
+      ]
+    });
+  }
+
+  function buildPaperTotalTimelinePlot(filteredRows, { title }) {
+    const rows = buildTotalTimelineRows(filteredRows);
+    const yearDomain = rows.map(d => d.year);
+
+    return Plot.plot({
+      title,
+      width: 1000,
+      height: 420,
+      marginLeft: 60,
+      marginRight: 30,
+      marginTop: 40,
+      marginBottom: 55,
+      style: { background: "white", color: paperTextColor(), fontSize: "14px" },
+      x: { label: "Year", domain: yearDomain, tickFormat: d3.format("d") },
+      y: { label: "Count", grid: true, nice: true },
+      marks: [
+        Plot.ruleY([0], { stroke: paperStrokeColor() }),
+        Plot.lineY(rows, {
+          x: "year",
+          y: "count",
+          stroke: "#f28e2b",
+          strokeWidth: 2.8
+        }),
+        Plot.dot(rows, {
+          x: "year",
+          y: "count",
+          fill: "#f28e2b",
+          stroke: "white",
+          strokeWidth: 1.2,
+          r: 4,
+          title: d => `${d.year}\n${d.count} paper${d.count === 1 ? "" : "s"}`
+        })
+      ]
+    });
+  }
+
+  function buildInteractiveTotalTimelinePlot(filteredRows, { title }) {
+    const rows = buildTotalTimelineRows(filteredRows);
+    const yearDomain = rows.map(d => d.year);
+
+    return Plot.plot({
+      title,
+      height: 260,
+      marginLeft: 50,
+      x: { label: "year →", domain: yearDomain, tickFormat: d3.format("d") },
+      y: { label: "count ↑", grid: true, nice: true },
+      marks: [
+        Plot.ruleY([0]),
+        Plot.lineY(rows, {
+          x: "year",
+          y: "count",
+          stroke: "#f28e2b",
+          strokeWidth: 2.8
+        }),
+        Plot.dot(rows, {
+          x: "year",
+          y: "count",
+          fill: "#f28e2b",
+          stroke: "white",
+          strokeWidth: 1.2,
+          r: 4,
+          tip: true,
+          title: d => `${d.year}\n${d.count} paper${d.count === 1 ? "" : "s"}`
+        })
       ]
     });
   }
@@ -875,7 +1152,7 @@
         marginRight: 20,
         marginBottom: 20,
         marginLeft: 20,
-        style: { background: "white", color: paperTextColor(), fontSize: "14px" },
+        style: { background: "white", color: paperTextColor(), fontSize: "18px" },
         projection: "albers-usa",
         color: placeColorScale(max),
         marks: [
@@ -888,9 +1165,9 @@
             x: "lon",
             y: "lat",
             text: d => d.count,
-            fontSize: 10,
+            fontSize: 18,
             fontWeight: 600,
-            fill: d => d.count >= max * 0.45 ? "white" : "#111",
+            fill: "white",
             stroke: "white",
             strokeWidth: 1.5
           }),
@@ -917,7 +1194,7 @@
         Plot.barX(top, {
           x: d => d[1],
           y: d => d[0],
-          fill: "#4c78a8",
+          fill: "#f88730",
           title: d => `${d[0]}: ${d[1]} paper${d[1] === 1 ? "" : "s"}`
         }),
         Plot.text(top, {
@@ -991,8 +1268,10 @@
   }
 
   function buildPaperHeatPlot(filteredRows, { field, title }) {
+    const populations = buildPopulationCounts(filteredRows).map(d => d.population_focus);
     const counts = buildHeatCounts(filteredRows, field);
     const { categories, marginLeft } = heatLayout(counts, 150);
+    const maxCount = d3.max(counts, d => d.count) || 1;
     return Plot.plot({
       title,
       width: 1100,
@@ -1002,18 +1281,18 @@
       marginTop: 40,
       marginBottom: 60,
       style: { background: "white", color: paperTextColor(), fontSize: "14px" },
-      color: { type: "log", scheme: "rdylbu", legend: true },
-      x: { label: "Grade", domain: GRADE_DOMAIN },
+      color: { type: "linear", scheme: "rdylbu", legend: true, domain: [0, maxCount], label: "count" },
+      x: { label: "Population focus", domain: populations },
       y: { label: null, domain: categories },
       marks: [
         Plot.rect(counts, {
-          x: "grade",
+          x: "population_focus",
           y: "category",
           fill: "count",
           inset: 0.5
         }),
         Plot.text(counts, {
-          x: "grade",
+          x: "population_focus",
           y: "category",
           text: d => d.count,
           fill: d => (2 <= d.count && d.count <= 5 ? "#222" : "#d6d6d6")
@@ -1024,14 +1303,15 @@
 
   function buildPaperTagHighlightTimelinePlot(filteredRows, { targetTag, title, legendTitle }) {
     const timelineRows = buildTagHighlightTimelineRows(filteredRows, targetTag);
-    const yearValues = timelineRows.map(d => d.year).filter(Boolean);
-    const xDomain = yearValues.length ? d3.range(d3.min(yearValues), d3.max(yearValues) + 1) : [];
-    const categoryDomain = ["Other papers", targetTag].filter(category =>
-      timelineRows.some(row => row.category === category)
-    );
-    const colorRange = ["#9aa4b2", "#f28e2b"].slice(0, categoryDomain.length);
+    const yearDomain = buildTimelineYearDomain(timelineRows);
+    const categoryDomain = timelineRows.length ? [targetTag] : [];
+    const colorRange = ["#f28e2b"].slice(0, categoryDomain.length);
     const categoryColor = d3.scaleOrdinal(categoryDomain, colorRange);
-
+    const seriesRows = buildTimelineSeriesRows(
+      timelineRows,
+      categoryDomain,
+      yearDomain
+    );
     const plot = Plot.plot({
       title,
       width: 1000,
@@ -1042,76 +1322,96 @@
       marginBottom: 55,
       style: { background: "white", color: paperTextColor(), fontSize: "14px" },
       color: { domain: categoryDomain, range: colorRange, legend: false },
-      x: { label: "Year", domain: xDomain, tickFormat: d3.format("d") },
+      x: { label: "Year", domain: yearDomain, tickFormat: d3.format("d") },
       y: { label: "Count", grid: true, nice: true },
       marks: [
-        Plot.barY(
-          timelineRows,
-          Plot.groupX({ y: "count" }, { x: "year", fill: "category" })
-        ),
-        Plot.ruleY([0], { stroke: paperStrokeColor() })
+        Plot.ruleY([0], { stroke: paperStrokeColor() }),
+        Plot.lineY(seriesRows, {
+          x: "year",
+          y: "count",
+          stroke: "category",
+          strokeWidth: 2.5
+        }),
+        Plot.dot(seriesRows, {
+          x: "year",
+          y: "count",
+          fill: "category",
+          stroke: "white",
+          strokeWidth: 1.2,
+          r: 4,
+          title: d => `${d.year}\n${d.category}: ${d.count} paper${d.count === 1 ? "" : "s"}`
+        })
       ]
     });
 
-    const wrapper = document.createElement("div");
-    wrapper.appendChild(plot);
-    if (categoryDomain.length) {
-      wrapper.appendChild(buildCategoricalLegendSvg({
-        title: legendTitle,
-        domain: categoryDomain,
-        color: categoryColor,
-        width: 1000
-      }));
-    }
-    return wrapper;
+    return addLegendOverlayToPlot(plot, {
+      title: legendTitle,
+      domain: categoryDomain,
+      color: categoryColor
+    });
   }
 
   function buildInteractiveTagHighlightTimelinePlot(filteredRows, { targetTag, title }) {
     const timelineRows = buildTagHighlightTimelineRows(filteredRows, targetTag);
-    const yearValues = timelineRows.map(d => d.year).filter(Boolean);
-    const xDomain = yearValues.length ? d3.range(d3.min(yearValues), d3.max(yearValues) + 1) : [];
-    const categoryDomain = ["Other papers", targetTag].filter(category =>
-      timelineRows.some(row => row.category === category)
+    const yearDomain = buildTimelineYearDomain(timelineRows);
+    const categoryDomain = timelineRows.length ? [targetTag] : [];
+    const colorRange = ["#f28e2b"].slice(0, categoryDomain.length);
+    const seriesRows = buildTimelineSeriesRows(
+      timelineRows,
+      categoryDomain,
+      yearDomain
     );
-    const colorRange = ["#9aa4b2", "#f28e2b"].slice(0, categoryDomain.length);
-
     return Plot.plot({
       title,
       height: 260,
       marginLeft: 50,
       color: { domain: categoryDomain, range: colorRange, legend: true },
-      x: { label: "year →", domain: xDomain, tickFormat: d3.format("d") },
+      x: { label: "year →", domain: yearDomain, tickFormat: d3.format("d") },
       y: { label: "count ↑", grid: true, nice: true },
       marks: [
-        Plot.barY(
-          timelineRows,
-          Plot.groupX({ y: "count" }, { x: "year", fill: "category", tip: true })
-        ),
-        Plot.ruleY([0])
+        Plot.ruleY([0]),
+        Plot.lineY(seriesRows, {
+          x: "year",
+          y: "count",
+          stroke: "category",
+          strokeWidth: 2.5
+        }),
+        Plot.dot(seriesRows, {
+          x: "year",
+          y: "count",
+          fill: "category",
+          stroke: "white",
+          strokeWidth: 1.2,
+          r: 4,
+          tip: true,
+          title: d => `${d.year}\n${d.category}: ${d.count} paper${d.count === 1 ? "" : "s"}`
+        })
       ]
     });
   }
 
   function buildInteractiveHeatPlot(filteredRows, { field, title }) {
+    const populations = buildPopulationCounts(filteredRows).map(d => d.population_focus);
     const counts = buildHeatCounts(filteredRows, field);
     const { categories, marginLeft } = heatLayout(counts, 120);
+    const maxCount = d3.max(counts, d => d.count) || 1;
     return Plot.plot({
       title,
       height: Math.max(260, categories.length * 24 + 90),
       marginLeft,
       marginBottom: 50,
-      color: { type: "log", scheme: "rdylbu", legend: true },
-      x: { label: null, domain: GRADE_DOMAIN },
+      color: { type: "linear", scheme: "rdylbu", legend: true, domain: [0, maxCount], label: "count" },
+      x: { label: null, domain: populations },
       y: { label: null, domain: categories },
       marks: [
         Plot.rect(counts, {
-          x: "grade",
+          x: "population_focus",
           y: "category",
           fill: "count",
           inset: 0.5
         }),
         Plot.text(counts, {
-          x: "grade",
+          x: "population_focus",
           y: "category",
           text: d => d.count,
           fill: d => (2 <= d.count && d.count <= 5 ? "#222" : "#d6d6d6")
@@ -1138,7 +1438,21 @@
         filename: `language_distribution_${suffix}.svg`,
         plot: buildPaperCategoryDistributionPlot(filteredRows, {
           field: "language",
-          title: "Distribution by Language"
+          title: "Distribution by Language",
+          orientation: "vertical"
+        })
+      },
+      {
+        filename: `course_context_distribution_${suffix}.svg`,
+        plot: buildPaperCategoryDistributionPlot(filteredRows, {
+          field: "course_or_context",
+          title: "Distribution by Course / Context"
+        })
+      },
+      {
+        filename: `timeline_total_papers_${suffix}.svg`,
+        plot: buildPaperTotalTimelinePlot(filteredRows, {
+          title: "Timeline of Total Papers (count)"
         })
       },
       {
@@ -1169,23 +1483,23 @@
         filename: `timeline_cs_for_all_${suffix}.svg`,
         plot: buildPaperTagHighlightTimelinePlot(filteredRows, {
           targetTag: "CS For All",
-          title: "Timeline Highlighting CS For All",
+          title: "Timeline of CS For All Papers",
           legendTitle: "Tag group"
         })
       },
       { filename: `place_distribution_${suffix}.svg`, plot: buildPaperPlacePlot(filteredRows) },
       {
-        filename: `tools_by_grade_${suffix}.svg`,
+        filename: `tools_by_population_${suffix}.svg`,
         plot: buildPaperHeatPlot(filteredRows, {
           field: "tools",
-          title: "Tools × Grade (count of papers)"
+          title: "Tools × Population Focus (count of papers)"
         })
       },
       {
-        filename: `languages_by_grade_${suffix}.svg`,
+        filename: `languages_by_population_${suffix}.svg`,
         plot: buildPaperHeatPlot(filteredRows, {
           field: "language",
-          title: "Languages × Grade (count of papers)"
+          title: "Languages × Population Focus (count of papers)"
         })
       }
     ];
@@ -1203,8 +1517,8 @@
     el("kpiYears").textContent = filteredYears.length ? `${d3.min(filteredYears)}–${d3.max(filteredYears)}` : "–";
     const places = uniq(filteredRows.map(d => norm(d.state))).filter(Boolean);
     el("kpiPlaces").textContent = places.length || "–";
-    const medN = median(paperRows.map(d => d.n_students));
-    el("kpiN").textContent = medN != null ? Math.round(medN) : "–";
+    const meanN = meanValue(paperRows.map(d => d.n_students));
+    el("kpiN").textContent = meanN != null ? Math.round(meanN) : "–";
   }
 
   function renderTable(filteredRows) {
@@ -1260,7 +1574,15 @@
     }));
     mount("#languageDistPlot", buildInteractiveCategoryDistributionPlot(filteredRows, {
       field: "language",
-      title: "Distribution by Language"
+      title: "Distribution by Language",
+      orientation: "vertical"
+    }));
+    mount("#contextDistPlot", buildInteractiveCategoryDistributionPlot(filteredRows, {
+      field: "course_or_context",
+      title: "Distribution by Course / Context"
+    }));
+    mount("#timelineTotalPlot", buildInteractiveTotalTimelinePlot(filteredRows, {
+      title: "Timeline of Total Papers (count)"
     }));
     mount("#timelinePlot", buildInteractiveTimelinePlot(filteredRows, {
       categoryField: "library",
@@ -1276,16 +1598,16 @@
     }));
     mount("#timelineCsForAllPlot", buildInteractiveTagHighlightTimelinePlot(filteredRows, {
       targetTag: "CS For All",
-      title: "Timeline Highlighting CS For All"
+      title: "Timeline of CS For All Papers"
     }));
     mount("#placePlot", buildInteractivePlacePlot(filteredRows));
     mount("#toolHeatPlot", buildInteractiveHeatPlot(filteredRows, {
       field: "tools",
-      title: "Tools × Grade (count of papers)"
+      title: "Tools × Population Focus (count of papers)"
     }));
     mount("#languageHeatPlot", buildInteractiveHeatPlot(filteredRows, {
       field: "language",
-      title: "Languages × Grade (count of papers)"
+      title: "Languages × Population Focus (count of papers)"
     }));
     renderTable(filteredRows);
 
